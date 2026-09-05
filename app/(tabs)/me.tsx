@@ -14,6 +14,10 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { THEME_REGISTRY } from '../../theme/registry';
 import { Persona } from '../../lib/surveyQuestions';
 import { syncFromCloud, triggerBackgroundSync } from '../../lib/syncService';
+import { useLocaleStore } from '../../store/useLocaleStore';
+import { SUPPORTED_LOCALES, SupportedLocale } from '../../lib/i18n';
+import { useAnimationStore } from '../../store/useAnimationStore';
+import { triggerLocalWeatherAlert } from '../../lib/notificationService';
 
 export default function MeScreen() {
   const router = useRouter();
@@ -32,6 +36,8 @@ export default function MeScreen() {
   } = useAuthStore();
   const { locations, reset: resetLocations } = useLocationStore();
   const { activeThemeId, reset: resetLayout, reinitializeLayout, layout } = useLayoutStore();
+  const { locale, setLocale, t } = useLocaleStore();
+  const { animationsEnabled, setAnimationsEnabled } = useAnimationStore();
 
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('C');
@@ -499,6 +505,87 @@ export default function MeScreen() {
                 </Typography>
               </TouchableOpacity>
             </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 8 }} />
+
+          {/* Regional Bhasha / Language Selection */}
+          <View style={{ paddingVertical: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{t('languageSetting')}</Typography>
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+                {SUPPORTED_LOCALES.find((l) => l.code === locale)?.nativeName}
+              </Typography>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {SUPPORTED_LOCALES.map((loc) => (
+                <TouchableOpacity
+                  key={loc.code}
+                  onPress={() => setLocale(loc.code as SupportedLocale)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 10,
+                    borderRadius: theme.shapes.borderRadius.s,
+                    backgroundColor: locale === loc.code ? theme.colors.primary : theme.colors.surfaceSecondary,
+                    borderWidth: 1,
+                    borderColor: locale === loc.code ? theme.colors.primary : theme.colors.border,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    color={locale === loc.code ? '#FFFFFF' : theme.colors.text}
+                    style={{ fontWeight: locale === loc.code ? '700' : '500' }}
+                  >
+                    {loc.nativeName}
+                  </Typography>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 8 }} />
+
+          {/* Motion & Animations Master Toggle */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{t('animationsSetting')}</Typography>
+              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={2}>
+                {t('animationsDesc')}
+              </Typography>
+            </View>
+            <TouchableOpacity
+              onPress={() => setAnimationsEnabled(!animationsEnabled)}
+              activeOpacity={0.7}
+              style={{
+                paddingVertical: 5,
+                paddingHorizontal: 12,
+                borderRadius: theme.shapes.borderRadius.s,
+                backgroundColor: animationsEnabled ? theme.colors.primary : theme.colors.surfaceSecondary,
+              }}
+            >
+              <Typography variant="caption" color={animationsEnabled ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+                {animationsEnabled ? t('motion') : t('static')}
+              </Typography>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 8 }} />
+
+          {/* Severe Alert Notification Test */}
+          <View style={{ paddingVertical: 6 }}>
+            <Button
+              title={t('testNotification')}
+              variant="outline"
+              onPress={async () => {
+                await triggerLocalWeatherAlert(
+                  'Heavy Monsoon Downpour & Gale Winds',
+                  'IMD issues Red Alert: Torrential rain (>120mm) and wind gusts up to 65km/h expected in your district. Avoid waterlogged areas.',
+                  'red'
+                );
+                Alert.alert('Alert Triggered', t('testNotificationSent'));
+              }}
+            />
           </View>
         </Card>
 

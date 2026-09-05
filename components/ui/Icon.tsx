@@ -27,7 +27,13 @@ export type IconName =
   | 'chevron-right'
   | 'refresh'
   | 'sliders'
-  | 'shield';
+  | 'shield'
+  | 'play'
+  | 'pause'
+  | 'radar'
+  | 'layers'
+  | 'globe'
+  | 'bell';
 
 interface IconProps {
   name: IconName;
@@ -276,6 +282,57 @@ export function Icon({ name, size = 22, color = '#000000', strokeWidth = 2 }: Ic
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'play':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M5 3l14 9-14 9V3z" fill={color} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'pause':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x="6" y="4" width="4" height="16" fill={color} stroke={color} strokeWidth={strokeWidth} />
+          <Rect x="14" y="4" width="4" height="16" fill={color} stroke={color} strokeWidth={strokeWidth} />
+        </Svg>
+      );
+
+    case 'radar':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={strokeWidth} />
+          <Circle cx="12" cy="12" r="6" stroke={color} strokeWidth={strokeWidth} />
+          <Circle cx="12" cy="12" r="2" fill={color} stroke={color} strokeWidth={strokeWidth} />
+          <Path d="M12 12L19 5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case 'layers':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Polyline points="12 2 2 7 12 12 22 7 12 2" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          <Polyline points="2 17 12 22 22 17" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          <Polyline points="2 12 12 17 22 12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'globe':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={strokeWidth} />
+          <Line x1="2" y1="12" x2="22" y2="12" stroke={color} strokeWidth={strokeWidth} />
+          <Path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" stroke={color} strokeWidth={strokeWidth} />
+        </Svg>
+      );
+
+    case 'bell':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M13.73 21a2 2 0 01-3.46 0" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
 

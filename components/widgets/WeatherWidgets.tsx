@@ -23,15 +23,15 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
       {data && (
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <View>
+            <View style={{ flex: 1, flexShrink: 1, paddingRight: 8 }}>
               <Typography variant="h1" style={{ fontSize: 44, fontWeight: '700', lineHeight: 50 }}>
                 {data.temp}{'\u00B0'}C
               </Typography>
-              <Typography variant="bodyMedium" style={{ fontWeight: '600', marginTop: 2 }}>
+              <Typography variant="bodyMedium" numberOfLines={2} style={{ fontWeight: '600', marginTop: 2 }}>
                 {data.desc}
               </Typography>
             </View>
-            <View style={{ alignItems: 'flex-end', paddingTop: 6 }}>
+            <View style={{ alignItems: 'flex-end', paddingTop: 6, flexShrink: 0 }}>
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
                 H: {data.high}{'\u00B0'} / L: {data.low}{'\u00B0'}
               </Typography>
@@ -45,21 +45,22 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
             style={{
               flexDirection: 'row',
               justifyContent: 'space-between',
+              alignItems: 'center',
               marginTop: theme.spacing.m,
               paddingTop: theme.spacing.s,
               borderTopWidth: 1,
               borderTopColor: theme.colors.border,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginRight: 8 }}>
               <Icon name="droplet" size={14} color={theme.colors.primary} />
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginLeft: 4 }}>
+              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginLeft: 4, flexShrink: 1 }}>
                 {data.humidity}% Humidity
               </Typography>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
               <Icon name="wind" size={14} color={theme.colors.primary} />
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginLeft: 4 }}>
+              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginLeft: 4, flexShrink: 1 }}>
                 {data.windSpeed} km/h {data.windDirection}
               </Typography>
             </View>
@@ -86,8 +87,8 @@ export function AqiWidget({ id, isCustomizing, onRemove }: WidgetProps) {
     >
       {data && (
         <View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', flexShrink: 1 }}>
               <Typography variant="h1" color={data.aqi > 100 ? theme.colors.warning : theme.colors.success}>
                 {data.aqi}
               </Typography>
@@ -95,7 +96,7 @@ export function AqiWidget({ id, isCustomizing, onRemove }: WidgetProps) {
                 US AQI
               </Typography>
             </View>
-            <Typography variant="caption" color={theme.colors.textSecondary}>
+            <Typography variant="caption" color={theme.colors.textSecondary} style={{ flexShrink: 1 }}>
               PM2.5: {data.pm25} {'\u00B5'}g/m{'\u00B3'}
             </Typography>
           </View>
@@ -249,12 +250,14 @@ export function SeaStateWidget({ id, isCustomizing, onRemove }: WidgetProps) {
     >
       {data && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
+          <View style={{ flexShrink: 0, marginRight: 8 }}>
             <Typography variant="h2" color={theme.colors.primary}>{data.waveHeight}</Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>Swell: {data.swellPeriod}</Typography>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{data.seaCondition}</Typography>
+          <View style={{ flex: 1, flexShrink: 1, alignItems: 'flex-end' }}>
+            <Typography variant="bodyMedium" numberOfLines={2} style={{ fontWeight: '600', textAlign: 'right' }}>
+              {data.seaCondition}
+            </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>Water ~{data.waterTemp}{'\u00B0'}C</Typography>
           </View>
         </View>
@@ -279,11 +282,11 @@ export function TideTimesWidget({ id, isCustomizing, onRemove }: WidgetProps) {
     >
       {data && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
+          <View style={{ flex: 1, flexShrink: 1, marginRight: 8 }}>
             <Typography variant="caption" color={theme.colors.textSecondary}>Next High Tide</Typography>
             <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{data.nextHigh}</Typography>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
+          <View style={{ flex: 1, flexShrink: 1, alignItems: 'flex-end' }}>
             <Typography variant="caption" color={theme.colors.textSecondary}>Next Low Tide</Typography>
             <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{data.nextLow}</Typography>
           </View>
@@ -311,9 +314,9 @@ export function DestinationWeatherWidget({ id, isCustomizing, onRemove }: Widget
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           {data.savedCities?.map((c: any, i: number) => (
             <View key={i} style={{ flex: 1, paddingRight: 8 }}>
-              <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{c.name}</Typography>
+              <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '600' }}>{c.name}</Typography>
               <Typography variant="h3" color={theme.colors.primary}>{c.temp}{'\u00B0'}C</Typography>
-              <Typography variant="caption" color={theme.colors.textSecondary}>{c.cond}</Typography>
+              <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>{c.cond}</Typography>
             </View>
           ))}
         </View>
@@ -365,11 +368,11 @@ export function SchoolCommuteWidget({ id, isCustomizing, onRemove }: WidgetProps
     >
       {data && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
+          <View style={{ flex: 1, flexShrink: 1, paddingRight: 8 }}>
             <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{data.window}</Typography>
-            <Typography variant="caption" color={theme.colors.textSecondary}>{data.advisory}</Typography>
+            <Typography variant="caption" numberOfLines={2} color={theme.colors.textSecondary}>{data.advisory}</Typography>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
+          <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
             <Typography variant="h3" color={theme.colors.primary}>{data.temp}{'\u00B0'}C</Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>Rain: {data.rainChance}</Typography>
           </View>
@@ -528,13 +531,15 @@ export function VisibilityFogWidget({ id, isCustomizing, onRemove }: WidgetProps
     >
       {data && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
+          <View style={{ flexShrink: 0, marginRight: 8 }}>
             <Typography variant="h2">{data.visibility}</Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>Fog Risk: {data.fogRisk}</Typography>
           </View>
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ maxWidth: 160, textAlign: 'right' }}>
-            {data.commuteImpact}
-          </Typography>
+          <View style={{ flex: 1, flexShrink: 1, alignItems: 'flex-end' }}>
+            <Typography variant="caption" numberOfLines={2} color={theme.colors.textSecondary} style={{ textAlign: 'right' }}>
+              {data.commuteImpact}
+            </Typography>
+          </View>
         </View>
       )}
     </WidgetCard>
@@ -567,16 +572,16 @@ export function ExtendedForecastWidget({ id, isCustomizing, onRemove }: WidgetPr
                 paddingVertical: 3,
               }}
             >
-              <Typography variant="bodyMedium" style={{ width: 85, fontWeight: '500' }}>{d.day}</Typography>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingHorizontal: 4 }}>
+              <Typography variant="bodyMedium" numberOfLines={1} style={{ width: 80, flexShrink: 0, fontWeight: '500' }}>{d.day}</Typography>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, paddingHorizontal: 4 }}>
                 {d.iconName && (
                   <View style={{ marginRight: 6 }}>
                     <Icon name={d.iconName} size={14} color={theme.colors.textSecondary} />
                   </View>
                 )}
-                <Typography variant="caption" color={theme.colors.textSecondary}>{d.cond}</Typography>
+                <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>{d.cond}</Typography>
               </View>
-              <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '600', flexShrink: 0 }}>
                 {d.high}{'\u00B0'} <Typography variant="caption" color={theme.colors.textSecondary}>{d.low}{'\u00B0'}</Typography>
               </Typography>
             </View>
@@ -603,15 +608,17 @@ export function ComfortIndexWidget({ id, isCustomizing, onRemove }: WidgetProps)
     >
       {data && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
+          <View style={{ flexShrink: 0, marginRight: 8 }}>
             <Typography variant="h2" color={theme.colors.primary}>
               {data.score} <Typography variant="caption" color={theme.colors.textSecondary}>/ 100</Typography>
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>{data.humidityImpact}</Typography>
           </View>
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ maxWidth: 150, textAlign: 'right' }}>
-            {data.coolingTip}
-          </Typography>
+          <View style={{ flex: 1, flexShrink: 1, alignItems: 'flex-end' }}>
+            <Typography variant="caption" numberOfLines={2} color={theme.colors.textSecondary} style={{ textAlign: 'right' }}>
+              {data.coolingTip}
+            </Typography>
+          </View>
         </View>
       )}
     </WidgetCard>

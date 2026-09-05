@@ -4,6 +4,7 @@ import { Card } from '../ui/Card';
 import { Typography } from '../ui/Typography';
 import { Icon, IconName } from '../ui/Icon';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useLocaleStore } from '../../store/useLocaleStore';
 
 export interface WidgetProps {
   id: string;
@@ -33,6 +34,10 @@ export function WidgetCard({
   onRemove,
 }: WrapperProps) {
   const theme = useTheme();
+  const _locale = useLocaleStore((state) => state.locale);
+  void _locale;
+  const t = useLocaleStore((state) => state.t);
+  const displayTitle = t(title);
 
   return (
     <Card style={{ marginBottom: theme.spacing.m, position: 'relative' }}>
@@ -47,7 +52,7 @@ export function WidgetCard({
           paddingBottom: theme.artDirection?.dividerStyle === 'hairline' ? 6 : 0,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, marginRight: 8 }}>
           {iconName && (
             <View style={{ marginRight: 6 }}>
               <Icon name={iconName} size={16} color={theme.colors.primary} />
@@ -56,9 +61,11 @@ export function WidgetCard({
           <Typography
             variant="caption"
             color={theme.colors.textSecondary}
-            style={{ fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase' }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{ fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase', flexShrink: 1 }}
           >
-            {title}
+            {displayTitle}
           </Typography>
         </View>
 

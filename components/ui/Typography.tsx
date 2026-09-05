@@ -8,24 +8,52 @@ interface Props extends TextProps {
   align?: 'left' | 'center' | 'right';
 }
 
-export function Typography({ variant = 'body', color, align = 'left', style, ...props }: Props) {
+export function Typography({ variant = 'body', color, align = 'left', style, maxFontSizeMultiplier = 1.35, ...props }: Props) {
   const theme = useTheme();
 
   const getVariantStyles = () => {
     switch (variant) {
-      case 'h1': return { fontSize: theme.typography.sizes.xxl, fontWeight: 'bold' as const };
-      case 'h2': return { fontSize: theme.typography.sizes.xl, fontWeight: 'bold' as const };
-      case 'h3': return { fontSize: theme.typography.sizes.l, fontWeight: 'bold' as const };
-      case 'bodyMedium': return { fontSize: theme.typography.sizes.m, fontWeight: '500' as const };
-      case 'caption': return { fontSize: theme.typography.sizes.s };
+      case 'h1': 
+        return { 
+          fontSize: theme.typography.sizes.xxl, 
+          lineHeight: Math.round(theme.typography.sizes.xxl * 1.2), 
+          fontWeight: 'bold' as const 
+        };
+      case 'h2': 
+        return { 
+          fontSize: theme.typography.sizes.xl, 
+          lineHeight: Math.round(theme.typography.sizes.xl * 1.25), 
+          fontWeight: 'bold' as const 
+        };
+      case 'h3': 
+        return { 
+          fontSize: theme.typography.sizes.l, 
+          lineHeight: Math.round(theme.typography.sizes.l * 1.3), 
+          fontWeight: 'bold' as const 
+        };
+      case 'bodyMedium': 
+        return { 
+          fontSize: theme.typography.sizes.m, 
+          lineHeight: Math.round(theme.typography.sizes.m * 1.4), 
+          fontWeight: '500' as const 
+        };
+      case 'caption': 
+        return { 
+          fontSize: theme.typography.sizes.s, 
+          lineHeight: Math.round(theme.typography.sizes.s * 1.35) 
+        };
       case 'body':
       default:
-        return { fontSize: theme.typography.sizes.m };
+        return { 
+          fontSize: theme.typography.sizes.m, 
+          lineHeight: Math.round(theme.typography.sizes.m * 1.4) 
+        };
     }
   };
 
   return (
     <Text
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
       style={[
         getVariantStyles(),
         {

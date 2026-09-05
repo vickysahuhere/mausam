@@ -1,10 +1,14 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useLocaleStore } from '../../store/useLocaleStore';
 import { Icon } from '../../components/ui/Icon';
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const _locale = useLocaleStore((state) => state.locale);
+  void _locale;
+  const t = useLocaleStore((state) => state.t);
 
   return (
     <Tabs
@@ -29,28 +33,28 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('homeTab'),
           tabBarIcon: ({ color }) => <Icon name="home" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="alerts"
         options={{
-          title: 'Alerts',
+          title: t('alertsTab'),
           tabBarIcon: ({ color }) => <Icon name="alerts" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="locations"
         options={{
-          title: 'Locations',
+          title: t('locationsTab'),
           tabBarIcon: ({ color }) => <Icon name="locations" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="me"
         options={{
-          title: 'Me',
+          title: t('meTab'),
           tabBarIcon: ({ color }) => <Icon name="me" size={20} color={color} />,
         }}
       />
