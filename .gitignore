@@ -59,3 +59,22 @@ Thumbs.db
 # Build artifacts
 coverage/
 build/
+
+# Emulator & test dumps / inspection artifacts
+/*.xml
+dump.xml
+window_dump.xml
+ui.xml
+ui_*.xml
+
+# Development & emulator screenshots
+/*.png
+emulator_*.png
+current_screen.png
+cur_screen*.png
+final_*.png
+
+# Temporary & backup files
+*.bak
+*.bak.*
+*.bak.json

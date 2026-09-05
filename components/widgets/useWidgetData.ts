@@ -1,220 +1,120 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useLocationStore } from '../../store/useLocationStore';
+import { getWeatherData, getCachedWeather, NormalizedWeatherData } from '../../lib/weatherService';
 
-// Mock hook isolating the data boundary.
-// In Phase 4, replace the switch statement branches with Open-Meteo, IMD, or Supabase Edge Function calls.
-export function useWidgetData<T>(endpoint: string, locationId: string | null) {
+export interface WidgetDataResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+  isStale: boolean;
+  isOffline: boolean;
+  refresh: () => void;
+}
+
+/**
+ * Hook providing live weather data for any registered widget.
+ * Implements Stale-While-Revalidate (SWR):
+ * - Renders cached data immediately if available.
+ * - Revalidates fresh telemetry in the background.
+ * - Retains usable cached forecasts when offline.
+ * - Deduplicates concurrent calls from multiple widgets.
+ */
+export function useWidgetData<T>(
+  endpoint: keyof NormalizedWeatherData | string,
+  locationId?: string | null
+): WidgetDataResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  const locations = useLocationStore((state) => state.locations);
+  const activeLoc =
+    locationId && locationId !== 'default'
+      ? locations.find((l) => l.id === locationId)
+      : locations.find((l) => l.isDefault) || locations[0];
+
+  const lat = activeLoc?.lat ?? 28.6139;
+  const lon = activeLoc?.lon ?? 77.209;
 
   useEffect(() => {
     let cancelled = false;
 
-    const fetchData = async () => {
-      setLoading(true);
+    const load = async () => {
+      let hasData = false;
 
-      // Brief delay to simulate fast local cached network fetch
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      if (cancelled) return;
-
-      switch (endpoint) {
-        case 'current_summary':
-          setData({
-            temp: 32,
-            high: 35,
-            low: 26,
-            desc: 'Partly Cloudy',
-            humidity: 62,
-            windSpeed: 14,
-            windDirection: 'NW',
-            feelsLike: 36,
-          } as T);
-          break;
-
-        case 'aqi_card':
-          setData({
-            aqi: 142,
-            pm25: 58.4,
-            pm10: 112.0,
-            status: 'Moderate',
-            dominantPollutant: 'PM2.5',
-            advisory: 'Sensitive groups should reduce prolonged outdoor exertion.',
-          } as T);
-          break;
-
-        case 'uv_index':
-          setData({
-            uvIndex: 7.8,
-            level: 'Very High',
-            peakTime: '12:00 PM - 2:30 PM',
-            protectionTip: 'Wear SPF 30+, sunglasses and a wide-brim hat.',
-            safeMinutesWithoutBurn: 20,
-          } as T);
-          break;
-
-        case 'pollen_estimate':
-          setData({
-            level: 'Moderate',
-            treePollen: 'Low',
-            grassPollen: 'Moderate',
-            ragweed: 'Low',
-            tip: 'Keep bedroom windows closed during late morning hours.',
-          } as T);
-          break;
-
-        case 'best_run_hours':
-          setData({
-            hours: ['05:30 AM - 07:00 AM', '06:30 PM - 08:00 PM'],
-            morningTemp: 26,
-            eveningTemp: 29,
-            airScore: 'Good',
-            comfortScore: 88,
-          } as T);
-          break;
-
-        case 'sunrise_sunset':
-          setData({
-            sunrise: '06:04 AM',
-            sunset: '06:42 PM',
-            firstLight: '05:42 AM',
-            goldenHour: '06:10 PM',
-            daylightDuration: '12h 38m',
-          } as T);
-          break;
-
-        case 'sea_state':
-          setData({
-            waveHeight: '1.4 m',
-            swellPeriod: '9 sec',
-            seaCondition: 'Moderate Swell',
-            waterTemp: 28,
-            surfRating: 'Fair (3/5)',
-          } as T);
-          break;
-
-        case 'tide_times':
-          setData({
-            station: 'Port Observation',
-            nextHigh: '11:20 AM (3.8m)',
-            nextLow: '05:45 PM (0.9m)',
-            tideTrend: 'Falling',
-          } as T);
-          break;
-
-        case 'destination_weather':
-          setData({
-            savedCities: [
-              { name: 'Bengaluru', temp: 24, cond: 'Pleasant Rain' },
-              { name: 'Goa', temp: 30, cond: 'Tropical Breeze' },
-            ],
-            alertCount: 0,
-          } as T);
-          break;
-
-        case 'packing_tip':
-          setData({
-            recommendations: [
-              'Light breathable cottons for daytime',
-              'Compact umbrella for scattered evening showers',
-              'UV sunglasses & sunscreen',
-            ],
-          } as T);
-          break;
-
-        case 'school_commute':
-          setData({
-            window: '07:30 AM - 08:45 AM',
-            temp: 27,
-            rainChance: '10%',
-            status: 'Clear Commute',
-            advisory: 'No delays expected due to weather.',
-          } as T);
-          break;
-
-        case 'rain_timeline':
-          setData({
-            summary: 'Dry next 3 hours; 25% chance of light drizzle at 5 PM',
-            timeline: [
-              { time: '1 PM', prob: 5, mm: 0 },
-              { time: '2 PM', prob: 10, mm: 0 },
-              { time: '3 PM', prob: 15, mm: 0 },
-              { time: '4 PM', prob: 20, mm: 0.2 },
-              { time: '5 PM', prob: 35, mm: 0.8 },
-              { time: '6 PM', prob: 25, mm: 0.3 },
-            ],
-          } as T);
-          break;
-
-        case 'frost_alert':
-          setData({
-            riskLevel: 'None',
-            minGroundTemp: 22,
-            frostWindow: 'No risk in next 72 hrs',
-            cropSafetyTip: 'Normal open field irrigation recommended.',
-          } as T);
-          break;
-
-        case 'rainfall_forecast':
-          setData({
-            districtPrediction: '3.2 mm (Normal range)',
-            sevenDayTotal: '18.4 mm',
-            soilMoistureStatus: 'Adequate',
-          } as T);
-          break;
-
-        case 'soil_moisture':
-          setData({
-            saturation: '64%',
-            depth10cm: 'Optimal (68%)',
-            depth40cm: 'Moist (72%)',
-            recommendation: 'Soil ready for top-dress fertilization.',
-          } as T);
-          break;
-
-        case 'visibility_fog':
-          setData({
-            visibility: '7.5 km',
-            status: 'Clear Visibility',
-            fogRisk: 'Low',
-            commuteImpact: 'No highway slowdowns reported.',
-          } as T);
-          break;
-
-        case 'extended_forecast':
-          setData({
-            days: [
-              { day: 'Today', high: 35, low: 26, cond: 'Partly Cloudy' },
-              { day: 'Tomorrow', high: 34, low: 25, cond: 'Passing Showers' },
-              { day: 'Wed', high: 33, low: 25, cond: 'Thunderstorm' },
-              { day: 'Thu', high: 32, low: 24, cond: 'Light Rain' },
-              { day: 'Fri', high: 34, low: 25, cond: 'Clear Sky' },
-            ],
-          } as T);
-          break;
-
-        case 'comfort_index':
-          setData({
-            score: 72,
-            category: 'Comfortable',
-            humidityImpact: 'Mild humid warmth',
-            coolingTip: 'Ceiling fans sufficient indoors.',
-          } as T);
-          break;
-
-        default:
-          setData({ message: 'Weather data ready' } as T);
-          break;
+      // 1. Immediately check cache (SWR initial step)
+      try {
+        const cached = await getCachedWeather(lat, lon);
+        if (cancelled) return;
+        if (cached?.data) {
+          const slice = (cached.data as any)[endpoint];
+          if (slice !== undefined) {
+            setData(slice as T);
+            setIsStale(cached.isExpired);
+            setLoading(false);
+            hasData = true;
+          }
+        }
+      } catch {
+        // Cache lookup non-blocking
       }
 
-      setLoading(false);
+      // 2. Fetch fresh / revalidate from Open-Meteo
+      try {
+        const freshDataset = await getWeatherData(lat, lon);
+        if (cancelled) return;
+        const freshSlice = (freshDataset as any)[endpoint];
+        if (freshSlice !== undefined) {
+          setData(freshSlice as T);
+        }
+        setIsStale(false);
+        setIsOffline(false);
+        setError(null);
+      } catch (err: any) {
+        if (cancelled) return;
+        if (hasData) {
+          setIsOffline(true);
+          setIsStale(true);
+        } else {
+          setError(err?.message || 'Weather service offline. Please check network.');
+          setIsOffline(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
 
-    fetchData();
+    load();
 
     return () => {
       cancelled = true;
     };
-  }, [endpoint, locationId]);
+  }, [endpoint, lat, lon]);
 
-  return { data, loading, error };
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const freshDataset = await getWeatherData(lat, lon, { forceRefresh: true });
+      const freshSlice = (freshDataset as any)[endpoint];
+      if (freshSlice !== undefined) {
+        setData(freshSlice as T);
+      }
+      setIsStale(false);
+      setIsOffline(false);
+      setError(null);
+    } catch (err: any) {
+      setIsOffline(true);
+      setError(err?.message || 'Failed to refresh');
+    } finally {
+      setLoading(false);
+    }
+  }, [endpoint, lat, lon]);
+
+  return { data, loading, error, isStale, isOffline, refresh };
 }
+
+

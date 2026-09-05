@@ -13,7 +13,7 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
   return (
     <WidgetCard
       title="Current Conditions"
-      iconName="sun"
+      iconName={data?.iconName || 'sun'}
       badge="Live"
       loading={loading}
       error={error}
@@ -568,7 +568,14 @@ export function ExtendedForecastWidget({ id, isCustomizing, onRemove }: WidgetPr
               }}
             >
               <Typography variant="bodyMedium" style={{ width: 85, fontWeight: '500' }}>{d.day}</Typography>
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ flex: 1 }}>{d.cond}</Typography>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingHorizontal: 4 }}>
+                {d.iconName && (
+                  <View style={{ marginRight: 6 }}>
+                    <Icon name={d.iconName} size={14} color={theme.colors.textSecondary} />
+                  </View>
+                )}
+                <Typography variant="caption" color={theme.colors.textSecondary}>{d.cond}</Typography>
+              </View>
               <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>
                 {d.high}{'\u00B0'} <Typography variant="caption" color={theme.colors.textSecondary}>{d.low}{'\u00B0'}</Typography>
               </Typography>

@@ -360,27 +360,71 @@ const LOCALITY_DATABASE: GeocodedLocation[] = [
   },
 ];
 
-// Default Provider implementing the clean search interface
-class LocalLocalityProvider implements LocationSearchProvider {
+// Default Provider implementing the clean search interface with Open-Meteo Geocoding fallback
+class HybridLocalityProvider implements LocationSearchProvider {
   async search(query: string): Promise<GeocodedLocation[]> {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
     if (!query || query.trim().length < 2) return [];
-
     const q = query.toLowerCase().trim();
 
-    return LOCALITY_DATABASE.filter(
+    // 1. Search local curated database (instant response)
+    const localMatches = LOCALITY_DATABASE.filter(
       (loc) =>
         loc.name.toLowerCase().includes(q) ||
         (loc.locality && loc.locality.toLowerCase().includes(q)) ||
         loc.city.toLowerCase().includes(q) ||
         loc.state.toLowerCase().includes(q)
-    ).slice(0, 10);
+    );
+
+    if (localMatches.length >= 4) {
+      return localMatches.slice(0, 10);
+    }
+
+    // 2. Fetch from Open-Meteo Geocoding API if online
+    try {
+      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=6&language=en&format=json`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && Array.isArray(data.results)) {
+          const apiMatches: GeocodedLocation[] = data.results.map((r: any) => {
+            const parts = [r.admin2 || r.name, r.admin1, r.country].filter(Boolean);
+            const hierarchy = parts.join(', ');
+            return {
+              id: `om-${r.id}`,
+              name: r.name,
+              locality: r.admin2,
+              city: r.admin1 || r.name,
+              state: r.admin1 || '',
+              country: r.country || 'India',
+              displayName: hierarchy ? `${r.name}, ${hierarchy}` : r.name,
+              lat: r.latitude,
+              lon: r.longitude,
+            };
+          });
+
+          // Merge local and API matches avoiding duplicate coordinates
+          const combined = [...localMatches];
+          for (const item of apiMatches) {
+            const exists = combined.some(
+              (c) => Math.abs(c.lat - item.lat) < 0.01 && Math.abs(c.lon - item.lon) < 0.01
+            );
+            if (!exists) {
+              combined.push(item);
+            }
+          }
+          return combined.slice(0, 10);
+        }
+      }
+    } catch {
+      // Fall back to local matches gracefully
+    }
+
+    return localMatches.slice(0, 10);
   }
 }
 
 // Active provider instance
-let activeLocationProvider: LocationSearchProvider = new LocalLocalityProvider();
+let activeLocationProvider: LocationSearchProvider = new HybridLocalityProvider();
 
 export function setLocationSearchProvider(provider: LocationSearchProvider) {
   activeLocationProvider = provider;
@@ -389,3 +433,4 @@ export function setLocationSearchProvider(provider: LocationSearchProvider) {
 export async function searchCities(query: string): Promise<GeocodedLocation[]> {
   return activeLocationProvider.search(query);
 }
+

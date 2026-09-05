@@ -12,6 +12,8 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useLayoutStore } from '../../store/useLayoutStore';
 import { useLocationStore } from '../../store/useLocationStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useWidgetData } from '../../components/widgets/useWidgetData';
+import { getAlertsForLocation, WeatherAlert } from '../../lib/alertService';
 
 export default function Home() {
   const router = useRouter();
@@ -24,10 +26,35 @@ export default function Home() {
 
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [libraryVisible, setLibraryVisible] = useState(false);
+  const [severeAlert, setSevereAlert] = useState<WeatherAlert | null>(null);
+
+  // SWR status for homepage
+  const { isStale, isOffline, refresh } = useWidgetData('current_summary');
 
   useEffect(() => {
     initializeForUser(personaVector);
   }, [personaVector, initializeForUser]);
+
+  // Check for severe weather alerts on primary location
+  useEffect(() => {
+    let cancelled = false;
+    if (!defaultLoc) {
+      return;
+    }
+    getAlertsForLocation(defaultLoc.lat, defaultLoc.lon, defaultLoc.label)
+      .then((res) => {
+        if (cancelled) return;
+        const severe = res.alerts.find((a) => a.severity === 'red' || a.severity === 'orange');
+        setSevereAlert(severe || null);
+      })
+      .catch(() => {
+        if (!cancelled) setSevereAlert(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultLoc]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -104,6 +131,70 @@ export default function Home() {
         )}
       </View>
 
+      {/* Offline / Stale Status Indicator */}
+      {!isCustomizing && (isOffline || isStale) && (
+        <View
+          style={{
+            marginHorizontal: theme.spacing.m,
+            marginTop: 4,
+            marginBottom: 6,
+            paddingVertical: 4,
+            paddingHorizontal: 10,
+            borderRadius: theme.shapes.borderRadius.s,
+            backgroundColor: theme.colors.surfaceSecondary,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Icon name="cloud" size={13} color={theme.colors.textSecondary} />
+            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginLeft: 6, fontWeight: '600', fontSize: 11 }}>
+              {isOffline ? 'Offline — Showing cached weather' : 'Revalidating weather...'}
+            </Typography>
+          </View>
+          <TouchableOpacity onPress={refresh} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>
+            <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
+              Refresh
+            </Typography>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Active Severe Alert Banner */}
+      {!isCustomizing && severeAlert && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push('/(tabs)/alerts')}
+          style={{
+            marginHorizontal: theme.spacing.m,
+            marginTop: 4,
+            marginBottom: 8,
+            padding: 10,
+            borderRadius: theme.shapes.borderRadius.m,
+            backgroundColor: severeAlert.severity === 'red' ? '#FEE2E2' : '#FEF3C7',
+            borderColor: severeAlert.severity === 'red' ? '#EF4444' : '#F59E0B',
+            borderWidth: 1.5,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
+            <Icon name="alert-triangle" size={18} color={severeAlert.severity === 'red' ? '#DC2626' : '#D97706'} />
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Typography variant="caption" style={{ fontWeight: '800', color: severeAlert.severity === 'red' ? '#991B1B' : '#92400E' }}>
+                {severeAlert.title}
+              </Typography>
+              <Typography variant="caption" style={{ color: severeAlert.severity === 'red' ? '#B91C1C' : '#B45309', fontSize: 11, marginTop: 1 }}>
+                {severeAlert.validUntil} &bull; Tap to view advisory
+              </Typography>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={14} color={severeAlert.severity === 'red' ? '#DC2626' : '#D97706'} />
+        </TouchableOpacity>
+      )}
+
       {/* Theme Picker and Add Widget drawer in Customization Mode */}
       {isCustomizing && (
         <View
@@ -131,3 +222,4 @@ export default function Home() {
     </SafeAreaView>
   );
 }
+
