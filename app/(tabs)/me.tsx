@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
@@ -13,18 +13,107 @@ import { useLayoutStore } from '../../store/useLayoutStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { THEME_REGISTRY } from '../../theme/registry';
 import { Persona } from '../../lib/surveyQuestions';
+import { syncFromCloud, triggerBackgroundSync } from '../../lib/syncService';
 
 export default function MeScreen() {
   const router = useRouter();
   const theme = useTheme();
 
-  const { isGuest, personaVector, signOut, setPersonaVector, completeSurvey, setGuest } = useAuthStore();
+  const {
+    hasSession,
+    user,
+    personaVector,
+    signOut,
+    signInWithPassword,
+    signUpWithPassword,
+    setPersonaVector,
+    completeSurvey,
+    setGuest,
+  } = useAuthStore();
   const { locations, reset: resetLocations } = useLocationStore();
   const { activeThemeId, reset: resetLayout, reinitializeLayout, layout } = useLayoutStore();
 
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('C');
   const [windUnit, setWindUnit] = useState<'km/h' | 'm/s'>('km/h');
+
+  // Cloud Auth & Sync state
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    if (!user?.id) return;
+    setSyncing(true);
+    try {
+      await syncFromCloud(user.id);
+      await triggerBackgroundSync(user.id);
+      Alert.alert('Cloud Sync Complete', 'All locations, layouts, and preferences are up to date.');
+    } catch (e: any) {
+      Alert.alert('Sync Notice', e?.message || 'Could not complete cloud sync.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out? Your current dashboard settings will be preserved locally.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAuthSubmit = async () => {
+    setAuthError(null);
+    const email = authEmail.trim();
+    if (!email || !email.includes('@')) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+    if (!authPassword || authPassword.length < 6) {
+      setAuthError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = authMode === 'signin'
+        ? await signInWithPassword(email, authPassword)
+        : await signUpWithPassword(email, authPassword);
+
+      if (res.success) {
+        setShowAuthForm(false);
+        setAuthEmail('');
+        setAuthPassword('');
+        Alert.alert(
+          'Account Connected',
+          authMode === 'signup'
+            ? 'Account created! Your current dashboard and locations have been saved to the cloud.'
+            : 'Welcome back! Your dashboard and cloud data have been synchronized.'
+        );
+      } else {
+        setAuthError(res.error || 'Authentication failed. Please try again.');
+      }
+    } catch (err: any) {
+      setAuthError(err?.message || 'An unexpected error occurred.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const defaultLoc = locations.find((l) => l.isDefault) || locations[0];
 
@@ -77,6 +166,7 @@ export default function MeScreen() {
         </Typography>
 
         {/* SECTION 1: PROFILE */}
+        {/* SECTION 1: PROFILE & CLOUD ACCOUNT */}
         <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View
@@ -94,13 +184,156 @@ export default function MeScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Typography variant="h3" style={{ fontWeight: '700' }}>
-                {isGuest ? 'Guest Explorer' : 'Registered User'}
+                {hasSession && user ? user.email || 'Registered User' : 'Guest Explorer'}
               </Typography>
               <Typography variant="caption" color={theme.colors.textSecondary}>
-                {isGuest ? 'Local session \u2022 No cloud sync' : 'Supabase authenticated'}
+                {hasSession && user ? 'Cloud Synced \u2022 PostgreSQL / RLS' : 'Local device session \u2022 No cloud backup'}
               </Typography>
             </View>
+
+            {/* Sync / Status Indicator */}
+            {hasSession && user && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#10B98120',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}
+              >
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 4 }} />
+                <Typography variant="caption" color="#10B981" style={{ fontWeight: '700', fontSize: 11 }}>
+                  Synced
+                </Typography>
+              </View>
+            )}
           </View>
+
+          {/* Authenticated Controls */}
+          {hasSession && user ? (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: 'row', gap: 10 }}>
+              <Button
+                title={syncing ? 'Syncing...' : 'Sync Now'}
+                variant="outline"
+                onPress={handleManualSync}
+                disabled={syncing}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Sign Out"
+                variant="ghost"
+                onPress={handleSignOut}
+                style={{ flex: 1 }}
+              />
+            </View>
+          ) : (
+            /* Guest Controls: In-App Sign In / Register toggle */
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color={theme.colors.textSecondary}>
+                  Create an account to sync locations and layouts across devices.
+                </Typography>
+              </View>
+              <Button
+                title={showAuthForm ? 'Hide Sign In' : 'Sign In / Register Cloud Account'}
+                variant={showAuthForm ? 'ghost' : 'outline'}
+                onPress={() => { setShowAuthForm(!showAuthForm); setAuthError(null); }}
+                style={{ marginTop: 8 }}
+              />
+
+              {/* Inline Auth Form */}
+              {showAuthForm && (
+                <View style={{ marginTop: 12, backgroundColor: theme.colors.surfaceSecondary, padding: 12, borderRadius: theme.shapes.borderRadius.s }}>
+                  {/* Mode tabs */}
+                  <View style={{ flexDirection: 'row', marginBottom: 10, backgroundColor: theme.colors.surface, borderRadius: 6, padding: 2 }}>
+                    <TouchableOpacity
+                      onPress={() => { setAuthMode('signin'); setAuthError(null); }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 6,
+                        alignItems: 'center',
+                        borderRadius: 4,
+                        backgroundColor: authMode === 'signin' ? theme.colors.surfaceSecondary : 'transparent',
+                      }}
+                    >
+                      <Typography variant="caption" style={{ fontWeight: authMode === 'signin' ? '700' : '500' }}>
+                        Sign In
+                      </Typography>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => { setAuthMode('signup'); setAuthError(null); }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 6,
+                        alignItems: 'center',
+                        borderRadius: 4,
+                        backgroundColor: authMode === 'signup' ? theme.colors.surfaceSecondary : 'transparent',
+                      }}
+                    >
+                      <Typography variant="caption" style={{ fontWeight: authMode === 'signup' ? '700' : '500' }}>
+                        Create Account
+                      </Typography>
+                    </TouchableOpacity>
+                  </View>
+
+                  {authError && (
+                    <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
+                      {authError}
+                    </Typography>
+                  )}
+
+                  <TextInput
+                    value={authEmail}
+                    onChangeText={setAuthEmail}
+                    placeholder="Email address"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={{
+                      backgroundColor: theme.colors.surface,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      fontSize: 13,
+                      color: theme.colors.text,
+                      marginBottom: 8,
+                    }}
+                  />
+
+                  <TextInput
+                    value={authPassword}
+                    onChangeText={setAuthPassword}
+                    placeholder={authMode === 'signup' ? 'Password (min 6 chars)' : 'Password'}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    style={{
+                      backgroundColor: theme.colors.surface,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      fontSize: 13,
+                      color: theme.colors.text,
+                      marginBottom: 10,
+                    }}
+                  />
+
+                  <Button
+                    title={authLoading ? 'Connecting...' : authMode === 'signin' ? 'Sign In & Sync' : 'Register & Sync'}
+                    variant="primary"
+                    disabled={authLoading}
+                    onPress={handleAuthSubmit}
+                  />
+                </View>
+              )}
+            </View>
+          )}
         </Card>
 
         {/* SECTION 2: PERSONALIZATION */}

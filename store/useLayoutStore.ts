@@ -4,6 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateInitialLayout, getRecommendedTheme } from '../lib/personaEngine';
 import { Persona } from '../lib/surveyQuestions';
 
+import { triggerBackgroundSync } from '../lib/syncService';
+import { useAuthStore } from './useAuthStore';
+
 export interface LayoutItem {
   id: string;
   type: string;
@@ -44,25 +47,43 @@ export const useLayoutStore = create<LayoutState>()(
           };
         }),
 
-      reinitializeLayout: (vector) =>
+      reinitializeLayout: (vector) => {
         set({
           hasInitialized: true,
           activeThemeId: getRecommendedTheme(vector),
           layout: generateInitialLayout(vector),
-        }),
+        });
+        const userId = useAuthStore.getState().user?.id || null;
+        triggerBackgroundSync(userId);
+      },
 
-      setTheme: (themeId) => set({ activeThemeId: themeId }),
-      setLayout: (layout) => set({ layout }),
+      setTheme: (themeId) => {
+        set({ activeThemeId: themeId });
+        const userId = useAuthStore.getState().user?.id || null;
+        triggerBackgroundSync(userId);
+      },
 
-      addWidget: (type) =>
+      setLayout: (layout) => {
+        set({ layout });
+        const userId = useAuthStore.getState().user?.id || null;
+        triggerBackgroundSync(userId);
+      },
+
+      addWidget: (type) => {
         set((state) => ({
           layout: [...state.layout, { id: `widget-${type}-${Date.now()}`, type }],
-        })),
+        }));
+        const userId = useAuthStore.getState().user?.id || null;
+        triggerBackgroundSync(userId);
+      },
 
-      removeWidget: (id) =>
+      removeWidget: (id) => {
         set((state) => ({
           layout: state.layout.filter((w) => w.id !== id),
-        })),
+        }));
+        const userId = useAuthStore.getState().user?.id || null;
+        triggerBackgroundSync(userId);
+      },
 
       reset: () =>
         set({
