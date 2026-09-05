@@ -1,158 +1,117 @@
-# Frontend Document
-## Mausam — Personalized Homepage (React Native / Expo)
+# Frontend Architecture Document
+## Mausam — Personalized Weather Platform (React Native / Expo)
 
 ---
 
-## 1. Folder Structure
+## 1. Core Principles
+
+- **Infinite Customization**: Pre-defined personas are purely a recommendation engine for first launch. The user owns their homepage layout completely. They can add, remove, and reorder widgets across the entire registry indefinitely.
+- **Decoupled Themes & Art Directions**: Persona (data preference) is strictly decoupled from Theme (visual presentation). A theme is a complete visual art direction (controlling card shapes, borders, visual density, typography hierarchy, iconography, shadows, and atmosphere), not merely a color palette. Any user can select any theme regardless of persona.
+- **Local-Level Accuracy**: Location support operates at locality/neighborhood granularity (e.g. Mundka, Rohini, Saket, Bandra, Koramangala) via device GPS or the extensible `LocationSearchProvider`.
+
+---
+
+## 2. Directory Structure (Expo Router)
 
 ```
 /app
-  /navigation
-    RootNavigator.tsx
-    OnboardingStack.tsx
-    MainTabs.tsx
-  /screens
-    /onboarding
-      SplashScreen.tsx
-      LandingScreen.tsx
-      AuthScreen.tsx
-      SurveyScreen.tsx        -- multi-step, driven by /lib/surveyQuestions.ts
-      LocationSetupScreen.tsx
-    /home
-      HomeScreen.tsx
-      CustomizeOverlay.tsx
-      WidgetLibrarySheet.tsx
-    AlertsScreen.tsx
-    LocationsScreen.tsx
-    SettingsScreen.tsx
-  /components
-    /widgets
-      BaseRow.tsx
-      AqiCard.tsx
-      PollenEstimate.tsx
-      UvIndex.tsx
-      BestRunHours.tsx
-      SunriseSunset.tsx
-      SeaState.tsx
-      TideTimes.tsx
-      DestinationWeather.tsx
-      PackingTip.tsx
-      SchoolCommute.tsx
-      RainTimeline.tsx
-      FrostAlert.tsx
-      RainfallForecast.tsx
-      SoilMoisture.tsx
-      VisibilityFog.tsx
-      ExtendedForecast.tsx
-      ComfortIndex.tsx
-      AlertBanner.tsx
-    WidgetCard.tsx        -- shared shell (title, loading, error, content)
-    GridRenderer.tsx      -- reads layout, renders widgets in order
-  /lib
-    personaEngine.ts      -- buildPersonaVector, scoreWidget, selectTopWidgets
-    derived.ts            -- bestRunningHours, comfortIndex, frostAlert
-    api.ts                -- typed client for Supabase Edge Functions
-    cache.ts              -- AsyncStorage/SQLite read/write helpers
-    surveyQuestions.ts    -- question bank + SURVEY_WEIGHTS
-    widgetRegistry.ts     -- WIDGET_PERSONA_RELEVANCE + widget metadata
-  /store
-    useAuthStore.ts        -- Zustand: session, guest mode
-    useLayoutStore.ts       -- Zustand: current layout, customize mode
-    useLocationStore.ts     -- Zustand: saved locations, default location
-  /theme
-    colors.ts
-    spacing.ts
-    typography.ts
+  _layout.tsx            -- Root Stack layout with ThemeProvider wrapping
+  index.tsx              -- Root gatekeeper routing to /onboarding or /(tabs)
+  /onboarding
+    index.tsx            -- Landing screen (Get Started / Sign In)
+    auth.tsx             -- Auth options + Continue as Guest
+    survey.tsx           -- Exactly 3 questions (multi-select, blended vector)
+    location-setup.tsx   -- Device GPS + Locality search + hierarchy confirmation
+  /(tabs)
+    _layout.tsx          -- Bottom tabs: Home | Alerts | Locations | Me
+    index.tsx            -- Personalized Homepage with Header, Edit, & Grid
+    alerts.tsx           -- IMD official bulletins & regional advisories
+    locations.tsx        -- Saved & primary location management
+    me.tsx               -- User profile, themes, units, & [__DEV__] Dev Options
+/components
+  /ui
+    Icon.tsx             -- Professional unified SVG vector icon system
+    Button.tsx           -- Themed buttons (primary, secondary, outline, ghost)
+    Card.tsx             -- Art-direction-aware card shell
+    Typography.tsx       -- Scale typography consuming useTheme()
+  /home
+    ThemeSelector.tsx    -- Visual art direction selector with card previews
+    WidgetLibrarySheet.tsx -- Modal exposing all 18 widgets for addition
+  /widgets
+    GridRenderer.tsx     -- Dynamic ordered list with reorder/remove controls
+    WidgetCard.tsx       -- Standard widget container with icons, badges, & actions
+    WeatherWidgets.tsx   -- All 18 registered weather widget UI components
+    useWidgetData.ts     -- Clean mock data boundary (Phase 4 API plug point)
+/theme
+  types.ts               -- MausamTheme interface with full art direction tokens
+  ThemeProvider.tsx      -- React Context providing useTheme() hook
+  registry.ts            -- Registry exporting all 11 visual themes
+  /themes
+    custom.ts, appleLiquid.ts, retroPeaceful.ts, health.ts, fitness.ts,
+    beach.ts, travel.ts, parent.ts, agriculture.ts, commuter.ts, event.ts
+/lib
+  widgetRegistry.ts      -- Complete 18-widget registry with persona weights
+  personaEngine.ts       -- Normalized vector scoring & layout assembly
+  surveyQuestions.ts     -- Exactly 3 survey questions with multi-persona weights
+  citySearch.ts          -- Extensible LocationSearchProvider & locality database
+/store
+  useAuthStore.ts        -- Zustand: session, guest mode, personaVector, survey status
+  useLayoutStore.ts      -- Zustand: activeThemeId, layout, initializeForUser, reset
+  useLocationStore.ts    -- Zustand: primary & saved locations with coordinates
 ```
 
-## 2. Widget Component Contract
+---
 
-Every widget takes the same prop shape so `GridRenderer` never needs special-case logic:
+## 3. The 18-Widget Inventory (PRD §8 & TRD §4)
 
-```tsx
-type WidgetProps<T> = {
-  title: string;
-  data: T | null;
-  loading: boolean;
-  error: string | null;
-};
+| Widget ID | Component | Primary Persona | Category |
+|---|---|---|---|
+| `current_summary` | `CurrentSummaryWidget` | All (Base row) | Essential |
+| `aqi_card` | `AqiWidget` | Health, Agriculture | Health |
+| `uv_index` | `UvIndexWidget` | Health, Beach, Fitness | Health & Outdoors |
+| `pollen_estimate` | `PollenWidget` | Health, Parent | Health |
+| `best_run_hours` | `BestRunHoursWidget` | Fitness | Fitness |
+| `sunrise_sunset` | `SunriseSunsetWidget` | Fitness, Beach, Event | Outdoors |
+| `sea_state` | `SeaStateWidget` | Beach | Marine |
+| `tide_times` | `TideTimesWidget` | Beach | Marine |
+| `destination_weather` | `DestinationWeatherWidget` | Travel | Travel |
+| `packing_tip` | `PackingTipWidget` | Travel | Travel |
+| `school_commute` | `SchoolCommuteWidget` | Parent, Commuter | Family |
+| `rain_timeline` | `RainTimelineWidget` | Commuter, Parent, Event | Essential |
+| `frost_alert` | `FrostAlertWidget` | Agriculture | Agriculture |
+| `rainfall_forecast` | `RainfallForecastWidget` | Agriculture | Agriculture |
+| `soil_moisture` | `SoilMoistureWidget` | Agriculture | Agriculture |
+| `visibility_fog` | `VisibilityFogWidget` | Commuter | Commute |
+| `extended_forecast` | `ExtendedForecastWidget` | Event, Travel | Planning |
+| `comfort_index` | `ComfortIndexWidget` | Event, Health | Planning |
 
-// Example
-function AqiCard({ title, data, loading, error }: WidgetProps<AqiData>) {
-  if (loading) return <WidgetCard title={title}><Skeleton /></WidgetCard>;
-  if (error)   return <WidgetCard title={title}><ErrorState message={error} /></WidgetCard>;
-  return (
-    <WidgetCard title={title}>
-      <Text>{data.aqi} AQI · {data.pm25} PM2.5</Text>
-    </WidgetCard>
-  );
-}
-```
+---
 
-`WidgetCard` is the shared shell: consistent padding, title row, and drag handle (visible only in customize mode) — every widget wraps its content in it so the grid looks consistent regardless of which widgets a given persona sees.
+## 4. Visual Themes & Art Directions
 
-## 3. Grid Renderer Behavior
+Themes define full visual atmospheres via `artDirection`:
+- **Custom**: Clean, adaptable baseline. Standard card elevation and 12px radius.
+- **Apple Liquid**: Frosted glass surfaces (`rgba(255,255,255,0.82)`), specular highlight borders, soft diffuse shadows, fluid 18px corners.
+- **Retro Peaceful 2D**: 2D flat illustration style, 2.5px solid dark outline, zero corner radius, hard comic drop shadow, warm aged parchment background.
+- **Health**: Sterile clean white, hairline dividers, precision data badges, medical cyan accents.
+- **Fitness**: High-contrast OLED black (`#09090B`), hyper-vibrant neon lime (`#A3E635`), glowing borders.
+- **Beach**: Ocean teal and warm sun, seafoam background, ultra-curved organic pebble shapes (28px radius).
+- **Travel**: Airport boarding pass styling, dashed perforation dividers, deep passport navy.
+- **Parent**: High-legibility typography, soft buttercup yellow background, friendly generous tap targets.
+- **Agriculture**: Fertile earth tones, forest green accents, 2px rugged ledger borders, blocky field geometry.
+- **Commuter**: Night highway asphalt slate (`#0F172A`), high-visibility road caution amber, glanceable HUD density.
+- **Event**: Wedding stationery ivory (`#FAFAF9`), champagne gold highlights, generous breathing room.
 
-- Reads `useLayoutStore`'s current layout (array of `{ widgetId, position, size }`).
-- If no saved layout exists yet (fresh user, survey just completed): falls back to `selectTopWidgets(vector, n)` output as a temporary in-memory layout, and offers a "Save this layout" affordance the first time the user edits it.
-- Renders `BaseRow` first, unconditionally, then the rest of the widgets in position order.
-- Each widget fetches its own data independently (via a small `useWidgetData(widgetId, location)` hook) so a failure in one never blocks siblings.
+---
 
-## 4. Data Fetching Pattern
+## 5. Navigation & User Controls
 
-```tsx
-function useWidgetData<T>(endpoint: string, location: LatLon) {
-  const [state, setState] = useState<{ data: T | null; loading: boolean; error: string | null }>(
-    { data: null, loading: true, error: null }
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const cached = await readCache(endpoint, location);
-      if (cached && !cancelled) setState({ data: cached, loading: false, error: null });
-
-      try {
-        const fresh = await fetchFromEdgeFunction(endpoint, location);
-        if (!cancelled) {
-          setState({ data: fresh, loading: false, error: null });
-          writeCache(endpoint, location, fresh);
-        }
-      } catch (e) {
-        if (!cancelled && !cached) setState({ data: null, loading: false, error: 'Unable to load' });
-        // if cached data exists, silently keep showing it rather than surfacing the error
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [endpoint, location]);
-
-  return state;
-}
-```
-
-This gives cache-first rendering (instant on repeat visits) with a silent background refresh, and graceful offline fallback per PRD FR8.
-
-## 5. Customize Mode Implementation
-
-- Enter via "Edit" button on Home → sets `useLayoutStore.isCustomizing = true`.
-- Use a drag-and-drop list library for React Native (e.g. `react-native-draggable-flatlist`) for reordering.
-- Each widget in customize mode shows a remove (✕) icon; tapping opens `WidgetLibrarySheet` to add more.
-- "Save" writes the new layout array to Supabase (`user_layouts`) or local storage (guest mode) and exits customize mode.
-
-## 6. Theme Architecture (Dynamic Theme System)
-
-Themes dictate **presentation** (how things look), while Personas dictate **data** (what widgets load). They are strictly decoupled.
-
-- **Theme Interface**: A `MausamTheme` interface must define `colors`, `typography`, `spacing`, `shapes` (radii), `cards` (elevation/shadows), and `motion` (springs).
-- **Theme Providers**: The app must use a React Context (`ThemeProvider`) or Zustand store (`useThemeStore`) to provide the *current* theme. UI components (`Button`, `Card`, `Typography`, `WidgetCard`) must consume their styles dynamically via a `useTheme()` hook rather than static imports.
-- **Infinite Customization**: Users can select any theme regardless of their persona (e.g., a "Fitness" persona using the "Apple Liquid" theme).
-- **Extensibility**: Adding a new theme should simply involve creating a new object that conforms to the `MausamTheme` interface and adding it to the theme registry, requiring zero changes to business logic or widget components.
-
-## 7. What to Hand Your AI Coding Tool
-
-When prompting for new widgets or screens, give it in one shot:
-- The `WidgetProps<T>` contract (section 2) — so every new widget matches without drifting.
-- The `useWidgetData` hook (section 4) — so new widgets don't reinvent fetching/caching per-component.
-- The folder structure (section 1) — so files land in the right place the first time.
-
-This keeps generated code consistent across dozens of AI-assisted prompts instead of every widget being written slightly differently.
+- **Bottom Navigation**: `Home | Alerts | Locations | Me` with custom SVG icons and theme-reactive tints.
+- **Homepage**: Clean header displaying "Mausam", active locality with map pin, and Customize toggle. No permanent floating gears.
+- **Me Page**: User's central control hub containing:
+  - Profile card (Guest / User status)
+  - Personalization card (Active persona, retake survey, active theme, layout count)
+  - Location management (Primary location shortcut)
+  - Units & preferences (°C/°F, km/h vs m/s)
+  - About Mausam (version & open source license)
+  - **Developer Options** (under `__DEV__`): One-click full reset and instant persona layout seeding for testing.

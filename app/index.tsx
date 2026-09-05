@@ -1,43 +1,42 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { Redirect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { useLocationStore } from '../store/useLocationStore';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeProvider';
 
 export default function Splash() {
+  const router = useRouter();
   const [isReady, setIsReady] = useState(false);
   const { hasSession, isGuest, personaVector, surveyCompleted } = useAuthStore();
-  const hasDefaultLocation = useLocationStore((state) => state.hasDefaultLocation());
+  const locations = useLocationStore((state) => state.locations);
+  const theme = useTheme();
 
   useEffect(() => {
-    // Artificial delay to simulate loading or checking session tokens if Supabase was used
-    const timer = setTimeout(() => setIsReady(true), 100);
+    const timer = setTimeout(() => setIsReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (!isReady) return;
 
-  // Routing Logic
-  const isActiveUser = hasSession || isGuest;
+    const isActiveUser = hasSession || isGuest;
+    const hasDefaultLocation = locations.some((l) => l.isDefault);
 
-  if (!isActiveUser) {
-    return <Redirect href="/onboarding" />;
-  }
+    if (!isActiveUser) {
+      router.replace('/onboarding');
+    } else if (!personaVector || !surveyCompleted) {
+      router.replace('/onboarding/survey');
+    } else if (!hasDefaultLocation) {
+      router.replace('/onboarding/location-setup');
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [isReady, hasSession, isGuest, personaVector, surveyCompleted, locations, router]);
 
-  if (!personaVector || !surveyCompleted) {
-    return <Redirect href="/onboarding/survey" />;
-  }
-
-  if (!hasDefaultLocation) {
-    return <Redirect href="/onboarding/location-setup" />;
-  }
-
-  return <Redirect href="/(tabs)" />;
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+    </View>
+  );
 }

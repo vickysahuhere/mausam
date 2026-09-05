@@ -1,8 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, TouchableOpacityProps } from 'react-native';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { typography } from '../../theme/typography';
+import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, ViewStyle, TextStyle } from 'react-native';
+import { useTheme } from '../../theme/ThemeProvider';
 
 interface Props extends TouchableOpacityProps {
   title: string;
@@ -11,54 +9,54 @@ interface Props extends TouchableOpacityProps {
 }
 
 export function Button({ title, variant = 'primary', loading, style, ...props }: Props) {
+  const theme = useTheme();
+
   const getBgColor = () => {
-    if (props.disabled) return colors.border;
-    if (variant === 'primary') return colors.primary;
-    if (variant === 'secondary') return colors.surface;
+    if (props.disabled) return theme.colors.border;
+    if (variant === 'primary') return theme.colors.primary;
+    if (variant === 'secondary') return theme.colors.surface;
     return 'transparent';
   };
 
   const getTextColor = () => {
-    if (props.disabled) return colors.textSecondary;
+    if (props.disabled) return theme.colors.textSecondary;
     if (variant === 'primary') return '#FFF';
-    if (variant === 'secondary' || variant === 'outline') return colors.primary;
-    return colors.text;
+    if (variant === 'secondary' || variant === 'outline') return theme.colors.primary;
+    return theme.colors.text;
+  };
+
+  const baseStyle: ViewStyle = {
+    paddingVertical: theme.spacing.m,
+    paddingHorizontal: theme.spacing.l,
+    borderRadius: theme.shapes.borderRadius.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    backgroundColor: getBgColor(),
+  };
+
+  const outlineStyle: ViewStyle | undefined = variant === 'outline' ? {
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  } : undefined;
+
+  const textStyle: TextStyle = {
+    fontSize: theme.typography.sizes.m,
+    color: getTextColor(),
+    fontFamily: theme.typography.fontFamily.bold,
   };
 
   return (
     <TouchableOpacity
-      style={[
-        styles.base,
-        { backgroundColor: getBgColor() },
-        variant === 'outline' && styles.outline,
-        style,
-      ]}
+      style={[baseStyle, outlineStyle, style]}
       activeOpacity={0.8}
       {...props}
     >
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
       ) : (
-        <Text style={[styles.text, { color: getTextColor() }]}>{title}</Text>
+        <Text style={textStyle}>{title}</Text>
       )}
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    paddingVertical: spacing.m,
-    paddingHorizontal: spacing.l,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  outline: {
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  text: {
-    ...typography.bodyMedium,
-  },
-});

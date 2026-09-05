@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, StyleSheet, SafeAreaView } from 'react-native';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../store/useAuthStore';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
+import { useTheme } from '../../theme/ThemeProvider';
 
 export default function Auth() {
   const router = useRouter();
   const setGuest = useAuthStore((state) => state.setGuest);
+  const theme = useTheme();
 
   const handleGuestLogin = () => {
     setGuest(true);
@@ -18,22 +19,22 @@ export default function Auth() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Typography variant="h2" style={styles.title}>Welcome</Typography>
-        <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <View style={{ flex: 1, padding: theme.spacing.l, justifyContent: 'center' }}>
+        <Typography variant="h2" style={{ marginBottom: theme.spacing.s }}>Welcome</Typography>
+        <Typography variant="body" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.xl }}>
           Sign in or continue as a guest to build your personalized weather dashboard.
         </Typography>
 
-        <Card style={styles.card}>
-          <Typography variant="bodyMedium" align="center" color={colors.textSecondary} style={{ marginBottom: spacing.l }}>
-            (Supabase Auth not yet implemented for Phase 2)
+        <Card style={{ padding: theme.spacing.xl }}>
+          <Typography variant="bodyMedium" align="center" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.l }}>
+            (Supabase Auth not yet implemented for Phase 3)
           </Typography>
           
           <Button 
             title="Sign in with Email" 
             disabled 
-            style={styles.button}
+            style={{ marginBottom: theme.spacing.m }}
           />
           
           <Button 
@@ -46,27 +47,3 @@ export default function Auth() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flex: 1,
-    padding: spacing.l,
-    justifyContent: 'center',
-  },
-  title: {
-    marginBottom: spacing.s,
-  },
-  subtitle: {
-    marginBottom: spacing.xl,
-  },
-  card: {
-    padding: spacing.xl,
-  },
-  button: {
-    marginBottom: spacing.m,
-  }
-});
