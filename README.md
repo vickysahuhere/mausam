@@ -1,6 +1,6 @@
 # Mausam
 
-Mausam is an open-source, highly customizable React Native weather application designed for the Indian Meteorological Department (IMD) / general weather usage. It generates a personalized dashboard based on user personas and allows infinite customization of weather widgets, themes, and layouts.
+Mausam is an open-source, highly customizable React Native weather application , designed such that  for the Indian Meteorological Department (IMD) for SIH 2026 / general weather usage. It generates a personalized dashboard based on user personas and allows infinite customization of weather widgets, themes, and layouts.
 
 ## ?? Project Overview
 
