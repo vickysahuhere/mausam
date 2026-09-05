@@ -30,5 +30,5 @@ export const AppleLiquidTheme: MausamTheme = {
   },
   spacing: { xs: 4, s: 10, m: 18, l: 26, xl: 34, xxl: 50 },
   shapes: { borderRadius: { s: 10, m: 18, l: 24, pill: 9999 } },
-  cards: { elevation: 3, borderWidth: 1.5, shadowOpacity: 0.12 },
+  cards: { elevation: 0, borderWidth: 1.5, shadowOpacity: 0.12 },
 };

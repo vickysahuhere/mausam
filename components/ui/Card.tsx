@@ -31,6 +31,7 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
           backgroundColor: colors.surface,
           borderColor: colors.border,
           borderWidth: 1.5,
+          elevation: 0,
         };
 
       case 'flat2d':
