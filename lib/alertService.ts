@@ -31,8 +31,26 @@ function getAlertCacheKey(lat: number, lon: number): string {
 }
 
 /**
+ * Checks if Supabase Edge Functions are available for alert proxying.
+ */
+function getEdgeAlertUrl(): string | null {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  if (
+    !supabaseUrl ||
+    supabaseUrl.includes('your-project-id') ||
+    supabaseUrl.includes('placeholder')
+  ) {
+    return null;
+  }
+  return `${supabaseUrl}/functions/v1/alerts`;
+}
+
+/**
  * Derives official meteorological warnings and advisories for a given location
  * based on live atmospheric sensor telemetry and WMO weather codes.
+ * 
+ * When Supabase Edge Functions are configured, routes through the /alerts function.
+ * Falls back to local alert derivation from weather data when offline or unconfigured.
  */
 export async function getAlertsForLocation(
   lat: number,
@@ -51,7 +69,44 @@ export async function getAlertsForLocation(
     // Continue to live fetch
   }
 
-  // 2. Fetch normalized live weather to evaluate meteorological warning criteria
+  // 2. Try Edge Function route first (if configured)
+  const edgeUrl = getEdgeAlertUrl();
+  if (edgeUrl) {
+    try {
+      const res = await fetch(`${edgeUrl}?lat=${lat}&lon=${lon}&district=${encodeURIComponent(districtName)}`);
+      if (res.ok) {
+        const edgeData = await res.json();
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        // Map Edge Function response to AlertFeedResult
+        const alerts: WeatherAlert[] = (edgeData.activeAlerts || []).map((a: any, i: number) => ({
+          id: `alert-edge-${lat.toFixed(2)}-${lon.toFixed(2)}-${i}`,
+          severity: a.severity as AlertSeverity,
+          type: a.type,
+          title: `${a.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())} ${a.severity === 'red' ? 'Warning' : 'Advisory'}`,
+          district: districtName,
+          agency: a.agency || 'IMD',
+          issuedAt: `Issued today at ${timeStr}`,
+          validUntil: a.validUntil ? `Valid until ${new Date(a.validUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Active',
+          description: a.message,
+          source: 'live' as const,
+        }));
+
+        const result: AlertFeedResult = {
+          alerts,
+          status: alerts.length > 0 ? 'active' : 'clear',
+          lastUpdated: timeStr,
+        };
+
+        await setCachedData(cacheKey, result, ALERT_CACHE_TTL_MS);
+        return result;
+      }
+    } catch {
+      // Edge Function unavailable — fall through to local derivation
+    }
+  }
+
+  // 3. Fetch normalized live weather to evaluate meteorological warning criteria (local fallback)
   let weatherData: NormalizedWeatherData;
   try {
     weatherData = await getWeatherData(lat, lon);

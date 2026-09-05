@@ -60,6 +60,47 @@ export interface OpenMeteoAirQualityResponse {
   };
 }
 
+export interface OpenMeteoMarineResponse {
+  latitude: number;
+  longitude: number;
+  current?: {
+    time: string;
+    wave_height: number | null;
+    wave_direction: number | null;
+    wave_period: number | null;
+    swell_wave_height: number | null;
+    swell_wave_period: number | null;
+    ocean_current_velocity?: number | null;
+    ocean_current_direction?: number | null;
+  };
+  hourly?: {
+    time: string[];
+    wave_height: (number | null)[];
+    wave_direction?: (number | null)[];
+    wave_period?: (number | null)[];
+  };
+}
+
+// ==========================================
+// 1b. EDGE FUNCTION CONFIGURATION
+// ==========================================
+
+/**
+ * When Supabase is configured, route API requests through Edge Functions.
+ * Falls back to direct Open-Meteo calls when Edge Functions are unavailable.
+ */
+function getEdgeFunctionBaseUrl(): string | null {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  if (
+    !supabaseUrl ||
+    supabaseUrl.includes('your-project-id') ||
+    supabaseUrl.includes('placeholder')
+  ) {
+    return null;
+  }
+  return `${supabaseUrl}/functions/v1`;
+}
+
 // ==========================================
 // 2. NORMALIZED DATA MODELS FOR ALL WIDGETS
 // ==========================================
@@ -356,12 +397,117 @@ function formatDayName(isoDate: string, index: number): string {
 }
 
 // ==========================================
+// 3b. MARINE DATA HELPERS
+// ==========================================
+
+/**
+ * Classifies sea condition based on wave height (simplified Douglas Sea Scale).
+ */
+function classifySeaState(waveHeight: number): string {
+  if (waveHeight < 0.1) return 'Calm (Glassy)';
+  if (waveHeight < 0.5) return 'Calm (Rippled)';
+  if (waveHeight < 1.25) return 'Smooth';
+  if (waveHeight < 2.5) return 'Moderate Swell';
+  if (waveHeight < 4.0) return 'Rough';
+  if (waveHeight < 6.0) return 'Very Rough';
+  return 'High Seas';
+}
+
+/**
+ * Rates surf conditions on a 1-5 scale based on wave height and period.
+ */
+function rateSurfConditions(waveHeight: number, wavePeriod: number | null | undefined): string {
+  if (waveHeight < 0.3) return 'Flat (1/5)';
+  const period = wavePeriod ?? 5;
+  if (waveHeight >= 1.0 && waveHeight <= 2.5 && period >= 8) return 'Great (5/5)';
+  if (waveHeight >= 0.8 && waveHeight <= 3.0 && period >= 6) return 'Good (4/5)';
+  if (waveHeight >= 0.5 && period >= 5) return 'Fair (3/5)';
+  if (waveHeight < 0.8) return 'Poor (2/5)';
+  return 'Dangerous (1/5)';
+}
+
+/**
+ * Estimates tidal phase from hourly wave height data.
+ * Finds local peaks and troughs as approximate high/low tide times.
+ */
+function estimateTidesFromWaveData(
+  times: string[],
+  waveHeights: (number | null)[]
+): { nextHigh: string; nextLow: string; tideTrend: string } | null {
+  if (!times || !waveHeights || waveHeights.length < 6) return null;
+
+  const peaks: Array<{ index: number; height: number; type: 'high' | 'low' }> = [];
+
+  for (let i = 1; i < waveHeights.length - 1; i++) {
+    const prev = waveHeights[i - 1];
+    const curr = waveHeights[i];
+    const next = waveHeights[i + 1];
+    if (curr === null || prev === null || next === null) continue;
+
+    if (curr > prev && curr > next) {
+      peaks.push({ index: i, height: curr, type: 'high' });
+    } else if (curr < prev && curr < next) {
+      peaks.push({ index: i, height: curr, type: 'low' });
+    }
+  }
+
+  if (peaks.length === 0) return null;
+
+  const now = new Date();
+  const currentHourIndex = now.getHours();
+
+  const futureHighs = peaks.filter(p => p.type === 'high' && p.index >= currentHourIndex);
+  const futureLows = peaks.filter(p => p.type === 'low' && p.index >= currentHourIndex);
+
+  const formatTideTime = (iso: string, height: number): string => {
+    try {
+      const parts = iso.split('T');
+      if (!parts[1]) return iso;
+      const [h, m] = parts[1].split(':');
+      let hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12;
+      if (hour === 0) hour = 12;
+      return `${hour}:${m} ${ampm} (${height.toFixed(1)}m)`;
+    } catch {
+      return iso;
+    }
+  };
+
+  const nextHigh = futureHighs.length > 0
+    ? formatTideTime(times[futureHighs[0].index], futureHighs[0].height)
+    : peaks.filter(p => p.type === 'high').length > 0
+      ? formatTideTime(times[peaks.filter(p => p.type === 'high')[0].index], peaks.filter(p => p.type === 'high')[0].height)
+      : 'Data unavailable';
+
+  const nextLow = futureLows.length > 0
+    ? formatTideTime(times[futureLows[0].index], futureLows[0].height)
+    : peaks.filter(p => p.type === 'low').length > 0
+      ? formatTideTime(times[peaks.filter(p => p.type === 'low')[0].index], peaks.filter(p => p.type === 'low')[0].height)
+      : 'Data unavailable';
+
+  // Determine current trend
+  let tideTrend = 'Stable';
+  if (currentHourIndex > 0 && currentHourIndex < waveHeights.length) {
+    const currentH = waveHeights[currentHourIndex];
+    const prevH = waveHeights[currentHourIndex - 1];
+    if (currentH !== null && prevH !== null) {
+      if (currentH > prevH + 0.05) tideTrend = 'Rising';
+      else if (currentH < prevH - 0.05) tideTrend = 'Falling';
+    }
+  }
+
+  return { nextHigh, nextLow, tideTrend };
+}
+
+// ==========================================
 // 4. TRANSFORMER: RAW TO NORMALIZED
 // ==========================================
 
 export function normalizeWeatherData(
   forecast: OpenMeteoForecastResponse,
-  airQuality?: OpenMeteoAirQualityResponse | null
+  airQuality?: OpenMeteoAirQualityResponse | null,
+  marine?: OpenMeteoMarineResponse | null
 ): NormalizedWeatherData {
   const current = forecast.current;
   const daily = forecast.daily;
@@ -637,21 +783,49 @@ export function normalizeWeatherData(
     tip: 'Pollen counts low after recent atmospheric moisture.',
   };
 
-  // Marine (Sea state & Tides)
-  const seaState: SeaStateData = {
-    waveHeight: '1.2 m',
-    swellPeriod: '8 sec',
-    seaCondition: 'Moderate Swell',
-    waterTemp: Math.round(temp - 3),
-    surfRating: 'Fair (3/5)',
-  };
+  // Marine (Sea state & Tides) — Live from Open-Meteo Marine API
+  const marineCurrent = marine?.current;
+  const hasMarineData = marineCurrent?.wave_height !== null && marineCurrent?.wave_height !== undefined;
 
-  const tideTimes: TideTimesData = {
-    station: 'Coastal Reference',
-    nextHigh: '11:45 AM (3.6m)',
-    nextLow: '05:30 PM (1.1m)',
-    tideTrend: 'Falling',
-  };
+  const seaState: SeaStateData = hasMarineData
+    ? {
+        waveHeight: `${marineCurrent!.wave_height!.toFixed(1)} m`,
+        swellPeriod: marineCurrent!.swell_wave_period
+          ? `${marineCurrent!.swell_wave_period.toFixed(1)} sec`
+          : marineCurrent!.wave_period
+            ? `${marineCurrent!.wave_period.toFixed(1)} sec`
+            : 'N/A',
+        seaCondition: classifySeaState(marineCurrent!.wave_height!),
+        waterTemp: Math.round(temp - 3), // Estimated — marine API doesn't provide SST
+        surfRating: rateSurfConditions(marineCurrent!.wave_height!, marineCurrent!.wave_period),
+      }
+    : {
+        waveHeight: 'N/A',
+        swellPeriod: 'N/A',
+        seaCondition: 'Inland Location',
+        waterTemp: 0,
+        surfRating: 'N/A',
+      };
+
+  // Tide estimation from hourly marine wave height variations
+  const marineHourly = marine?.hourly;
+  const tideEstimate = hasMarineData && marineHourly
+    ? estimateTidesFromWaveData(marineHourly.time, marineHourly.wave_height)
+    : null;
+
+  const tideTimes: TideTimesData = tideEstimate
+    ? {
+        station: 'Marine Observation Point',
+        nextHigh: tideEstimate.nextHigh,
+        nextLow: tideEstimate.nextLow,
+        tideTrend: tideEstimate.tideTrend,
+      }
+    : {
+        station: 'Unavailable',
+        nextHigh: 'N/A',
+        nextLow: 'N/A',
+        tideTrend: 'N/A',
+      };
 
   // Travel widgets
   const destinationWeather: DestinationWeatherData = {
@@ -744,11 +918,12 @@ export async function getCachedWeather(
 }
 
 /**
- * Fetches Open-Meteo live forecast and air-quality data for given coordinates.
+ * Fetches live weather, air-quality, and marine data for given coordinates.
+ * - Routes through Supabase Edge Functions when configured, falls back to direct Open-Meteo.
  * - Deduplicates concurrent requests from multiple widgets.
  * - Checks in-memory and AsyncStorage caches (10-minute TTL).
  * - Supports forceRefresh to bypass valid memory caches during manual refresh or revalidation.
- * - Normalizes data for all 18 widgets.
+ * - Normalizes data for all 18 widgets including live marine data.
  */
 export async function getWeatherData(
   lat: number,
@@ -773,22 +948,90 @@ export async function getWeatherData(
   // 3. Initiate the request with deduplication
   const fetchPromise = (async () => {
     try {
-      const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,visibility&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum&timezone=auto`;
-      const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,european_aqi,us_aqi&timezone=auto`;
+      const edgeBase = getEdgeFunctionBaseUrl();
 
-      const [forecastRes, aqiRes] = await Promise.all([
-        fetch(forecastUrl),
-        fetch(aqiUrl).catch(() => null),
-      ]);
+      let forecastJson: OpenMeteoForecastResponse;
+      let aqiJson: OpenMeteoAirQualityResponse | null = null;
+      let marineJson: OpenMeteoMarineResponse | null = null;
 
-      if (!forecastRes.ok) {
-        throw new Error(`Open-Meteo request failed: ${forecastRes.status}`);
+      if (edgeBase) {
+        // ── Route through Supabase Edge Functions ──
+        const [forecastRes, aqiRes, marineRes] = await Promise.all([
+          fetch(`${edgeBase}/weather?lat=${lat}&lon=${lon}`),
+          fetch(`${edgeBase}/aqi?lat=${lat}&lon=${lon}`).catch(() => null),
+          fetch(`${edgeBase}/sea?lat=${lat}&lon=${lon}`).catch(() => null),
+        ]);
+
+        if (!forecastRes.ok) {
+          throw new Error(`Edge Function /weather returned ${forecastRes.status}`);
+        }
+
+        // Edge Functions return the same shape as Open-Meteo (TRD §6)
+        const weatherData = await forecastRes.json();
+        forecastJson = {
+          latitude: weatherData.metadata?.latitude ?? lat,
+          longitude: weatherData.metadata?.longitude ?? lon,
+          timezone: weatherData.metadata?.timezone ?? 'auto',
+          current: weatherData.current,
+          hourly: weatherData.hourly,
+          daily: weatherData.daily,
+        };
+
+        if (aqiRes && aqiRes.ok) {
+          const aqiData = await aqiRes.json();
+          aqiJson = {
+            latitude: aqiData.metadata?.latitude ?? lat,
+            longitude: aqiData.metadata?.longitude ?? lon,
+            current: {
+              time: new Date().toISOString(),
+              pm10: aqiData.pm10 ?? 0,
+              pm2_5: aqiData.pm25 ?? 0,
+              european_aqi: aqiData.aqi ?? 0,
+              us_aqi: aqiData.aqi ?? 0,
+            },
+          };
+        }
+
+        if (marineRes && marineRes.ok) {
+          const seaData = await marineRes.json();
+          if (seaData.status !== 'unavailable') {
+            // Parse Edge Function marine response back to raw marine shape
+            marineJson = {
+              latitude: seaData.metadata?.latitude ?? lat,
+              longitude: seaData.metadata?.longitude ?? lon,
+              current: {
+                time: new Date().toISOString(),
+                wave_height: seaData.waveHeight ? parseFloat(seaData.waveHeight) : null,
+                wave_direction: null,
+                wave_period: seaData.wavePeriod ? parseFloat(seaData.wavePeriod) : null,
+                swell_wave_height: seaData.swellHeight ? parseFloat(seaData.swellHeight) : null,
+                swell_wave_period: seaData.swellPeriod ? parseFloat(seaData.swellPeriod) : null,
+              },
+            };
+          }
+        }
+      } else {
+        // ── Direct Open-Meteo calls (fallback / local dev) ──
+        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,visibility&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum&timezone=auto`;
+        const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,european_aqi,us_aqi&timezone=auto`;
+        const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period&hourly=wave_height,wave_direction,wave_period&forecast_days=2`;
+
+        const [forecastRes, aqiRes, marineRes] = await Promise.all([
+          fetch(forecastUrl),
+          fetch(aqiUrl).catch(() => null),
+          fetch(marineUrl).catch(() => null),
+        ]);
+
+        if (!forecastRes.ok) {
+          throw new Error(`Open-Meteo request failed: ${forecastRes.status}`);
+        }
+
+        forecastJson = await forecastRes.json();
+        aqiJson = aqiRes && aqiRes.ok ? await aqiRes.json() : null;
+        marineJson = marineRes && marineRes.ok ? await marineRes.json() : null;
       }
 
-      const forecastJson: OpenMeteoForecastResponse = await forecastRes.json();
-      const aqiJson: OpenMeteoAirQualityResponse | null = aqiRes && aqiRes.ok ? await aqiRes.json() : null;
-
-      const normalized = normalizeWeatherData(forecastJson, aqiJson);
+      const normalized = normalizeWeatherData(forecastJson, aqiJson, marineJson);
 
       // Save to memory cache
       inMemoryCache.set(key, { data: normalized, timestamp: Date.now() });
