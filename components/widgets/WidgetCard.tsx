@@ -52,9 +52,9 @@ export function WidgetCard({
           paddingBottom: theme.artDirection?.dividerStyle === 'hairline' ? 6 : 0,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, marginRight: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, minWidth: 0, marginRight: 8 }}>
           {iconName && (
-            <View style={{ marginRight: 6 }}>
+            <View style={{ marginRight: 6, flexShrink: 0 }}>
               <Icon name={iconName} size={16} color={theme.colors.primary} />
             </View>
           )}
@@ -69,7 +69,7 @@ export function WidgetCard({
           </Typography>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 0 }}>
           {badge && !isCustomizing && (
             <View
               style={{

@@ -313,7 +313,7 @@ export function DestinationWeatherWidget({ id, isCustomizing, onRemove }: Widget
       {data && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           {data.savedCities?.map((c: any, i: number) => (
-            <View key={i} style={{ flex: 1, paddingRight: 8 }}>
+            <View key={i} style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
               <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '600' }}>{c.name}</Typography>
               <Typography variant="h3" color={theme.colors.primary}>{c.temp}{'\u00B0'}C</Typography>
               <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>{c.cond}</Typography>

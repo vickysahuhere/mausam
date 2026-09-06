@@ -107,11 +107,12 @@ export default function Survey() {
                   <Typography 
                     variant="bodyMedium" 
                     color={isSelected ? theme.colors.primary : theme.colors.text}
+                    style={{ flex: 1, flexShrink: 1, minWidth: 0, marginRight: theme.spacing.s }}
                   >
                     {option.label}
                   </Typography>
                   <View style={[
-                    { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: theme.colors.border },
+                    { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: theme.colors.border, flexShrink: 0 },
                     isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary }
                   ]} />
                 </Card>

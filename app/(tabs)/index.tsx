@@ -83,7 +83,7 @@ export default function Home() {
           }}
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flex: 1, flexShrink: 1, marginRight: 10 }}>
+            <View style={{ flex: 1, flexShrink: 1, minWidth: 0, marginRight: 10 }}>
               <Typography variant="h2" numberOfLines={1} style={{ fontWeight: '800', letterSpacing: -0.5 }}>
                 {isCustomizing ? t('customizingLayout') : t('appName')}
               </Typography>
@@ -257,7 +257,7 @@ export default function Home() {
               elevation: 2,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, paddingRight: 8 }}>
               <View
                 style={{
                   width: 38,
@@ -267,11 +267,12 @@ export default function Home() {
                   justifyContent: 'center',
                   alignItems: 'center',
                   marginRight: 10,
+                  flexShrink: 0,
                 }}
               >
                 <Icon name="radar" size={20} color={theme.colors.primary} />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '700' }}>
                   {t('radarCardTitle')}
                 </Typography>
@@ -287,9 +288,10 @@ export default function Home() {
                 paddingVertical: 6,
                 borderRadius: 12,
                 backgroundColor: theme.colors.primary,
+                flexShrink: 0,
               }}
             >
-              <Typography variant="caption" color="#fff" style={{ fontWeight: '700', fontSize: 11 }}>
+              <Typography variant="caption" numberOfLines={1} color="#fff" style={{ fontWeight: '700', fontSize: 11 }}>
                 {t('viewRadar')}
               </Typography>
             </View>

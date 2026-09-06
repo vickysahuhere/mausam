@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Icon } from '../../components/ui/Icon';
 import { useLocationStore, SavedLocation } from '../../store/useLocationStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useLocaleStore } from '../../store/useLocaleStore';
+import { WeatherAtmosphere } from '../../components/ui/WeatherAtmosphere';
 import { searchCities, GeocodedLocation } from '../../lib/citySearch';
 
 export default function Locations() {
-  const router = useRouter();
   const theme = useTheme();
+  const _locale = useLocaleStore((state) => state.locale);
+  void _locale;
+  const t = useLocaleStore((state) => state.t);
   const { locations, setDefaultLocation, addLocation, removeLocation } = useLocationStore();
 
   const [showAddSearch, setShowAddSearch] = useState(false);
@@ -41,7 +44,7 @@ export default function Locations() {
     );
 
     if (isAlreadySaved) {
-      Alert.alert('Location Already Saved', `"${item.displayName}" is already in your saved locations.`);
+      Alert.alert(t('locationAlreadySaved'), `"${item.displayName}" is already in your saved locations.`);
       setShowAddSearch(false);
       setSearchQuery('');
       setSearchResults([]);
@@ -63,7 +66,7 @@ export default function Locations() {
 
   const handleDelete = (loc: SavedLocation) => {
     Alert.alert(
-      'Delete Location',
+      t('removeLocation'),
       `Remove "${loc.label}" from your saved locations?`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -84,221 +87,197 @@ export default function Locations() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m }}>
+      <WeatherAtmosphere weatherType="clear" />
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
+        {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.m }}>
-          <View>
-            <Typography variant="h1" style={{ fontWeight: '800' }}>
-              Saved Locations
+          <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+            <Typography variant="h1" numberOfLines={1} style={{ fontWeight: '800' }}>
+              {t('locationsHeader')}
             </Typography>
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-              Manage and switch active weather locations
+            <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
+              {t('savedLocations')} ({locations.length})
             </Typography>
           </View>
           {!showAddSearch && (
             <Button
-              title="+ Add Location"
+              title={t('addNewLocation')}
               variant="outline"
               onPress={() => setShowAddSearch(true)}
-              style={{ paddingVertical: 6, paddingHorizontal: 12 }}
+              style={{ paddingVertical: 8, paddingHorizontal: 12, flexShrink: 0 }}
             />
           )}
         </View>
 
-        {showAddSearch ? (
-          <Card style={{ marginBottom: theme.spacing.l, padding: theme.spacing.m }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.s }}>
-              <View
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: theme.colors.surfaceSecondary,
-                  borderRadius: theme.shapes.borderRadius.s,
-                  paddingHorizontal: 8,
-                }}
-              >
-                <Icon name="search" size={16} color={theme.colors.textSecondary} />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={handleSearch}
-                  placeholder="Search locality, city, or state..."
-                  placeholderTextColor={theme.colors.textSecondary}
-                  autoFocus
-                  style={{
-                    flex: 1,
-                    paddingVertical: 8,
-                    paddingHorizontal: 6,
-                    color: theme.colors.text,
-                    fontSize: 14,
-                  }}
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => handleSearch('')} style={{ padding: 4 }}>
-                    <Icon name="close" size={14} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <Button
-                title="Cancel"
-                variant="ghost"
+        {/* Add Location Search Box */}
+        {showAddSearch && (
+          <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m, borderColor: theme.colors.primary, borderWidth: 1.5 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.s }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '700' }}>
+                {t('addNewLocation')}
+              </Typography>
+              <TouchableOpacity
                 onPress={() => {
                   setShowAddSearch(false);
                   setSearchQuery('');
                   setSearchResults([]);
-                  setHasSearched(false);
                 }}
-                style={{ marginLeft: 6, paddingHorizontal: 8 }}
+                style={{ padding: 4 }}
+              >
+                <Icon name="x" size={18} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderRadius: theme.shapes.borderRadius.s,
+                paddingHorizontal: 10,
+                marginBottom: 8,
+              }}
+            >
+              <Icon name="search" size={16} color={theme.colors.textSecondary} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={handleSearch}
+                placeholder={t('searchCitiesPlaceholder')}
+                placeholderTextColor={theme.colors.textSecondary}
+                autoFocus
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 8,
+                  color: theme.colors.text,
+                  fontSize: 14,
+                }}
               />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => handleSearch('')} style={{ padding: 4 }}>
+                  <Icon name="x" size={14} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              )}
             </View>
 
             {searching && (
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginVertical: 6 }}>
-                Searching localities and cities...
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ paddingVertical: 8 }}>
+                Searching Indian meteorological registry...
               </Typography>
             )}
 
             {!searching && hasSearched && searchResults.length === 0 && (
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginVertical: 8, fontStyle: 'italic' }}>
-                No matching locations found. Try searching for a neighborhood, district, or city name.
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ paddingVertical: 8 }}>
+                {t('noLocationsFound')}
               </Typography>
             )}
 
-            {searchResults.map((item) => {
-              const isAlreadySaved = locations.some(
-                (l) => l.id === item.id || (Math.abs(l.lat - item.lat) < 0.005 && Math.abs(l.lon - item.lon) < 0.005)
-              );
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  onPress={() => handleSelect(item)}
-                  style={{
-                    paddingVertical: 10,
-                    borderBottomWidth: 1,
-                    borderBottomColor: theme.colors.border,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{item.name}</Typography>
-                    <Typography variant="caption" color={theme.colors.textSecondary}>
-                      {[item.locality, item.city, item.state].filter(Boolean).join(', ')}
-                    </Typography>
-                  </View>
-                  {isAlreadySaved ? (
-                    <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
-                      Saved
-                    </Typography>
-                  ) : (
-                    <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
-                      + Add
-                    </Typography>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </Card>
-        ) : null}
-
-        {locations.length === 0 ? (
-          <Card style={{ padding: theme.spacing.xl, alignItems: 'center' }}>
-            <Icon name="map-pin" size={40} color={theme.colors.textSecondary} />
-            <Typography variant="h3" style={{ marginTop: 12, fontWeight: '700' }}>
-              No Saved Locations
-            </Typography>
-            <Typography variant="bodyMedium" color={theme.colors.textSecondary} align="center" style={{ marginTop: 6 }}>
-              Add localities or cities to switch between them and track localized forecasts.
-            </Typography>
-            <Button
-              title="Add a Location"
-              variant="primary"
-              onPress={() => setShowAddSearch(true)}
-              style={{ marginTop: 16 }}
-            />
-          </Card>
-        ) : (
-          locations.map((loc) => (
-            <Card
-              key={loc.id}
-              style={{
-                marginBottom: theme.spacing.m,
-                padding: theme.spacing.m,
-                borderColor: loc.isDefault ? theme.colors.primary : theme.colors.border,
-                borderWidth: loc.isDefault ? 1.5 : 1,
-              }}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <TouchableOpacity
-                  style={{ flex: 1, paddingRight: 10 }}
-                  onPress={() => {
-                    if (!loc.isDefault) {
-                      handleSetPrimary(loc);
-                    }
-                    router.push('/(tabs)');
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="map-pin" size={16} color={loc.isDefault ? theme.colors.primary : theme.colors.textSecondary} />
-                    <Typography variant="bodyMedium" style={{ fontWeight: '700', marginLeft: 6, flex: 1 }}>
-                      {loc.label}
-                    </Typography>
-                  </View>
-                  <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 4, marginLeft: 22 }}>
-                    {loc.lat.toFixed(4)}°N, {loc.lon.toFixed(4)}°E
-                  </Typography>
-                </TouchableOpacity>
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  {loc.isDefault ? (
-                    <View
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                        borderRadius: theme.shapes.borderRadius.s,
-                        backgroundColor: theme.colors.surfaceSecondary,
-                      }}
-                    >
-                      <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
-                        Active
+            {searchResults.length > 0 && (
+              <View style={{ maxHeight: 200 }}>
+                {searchResults.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => handleSelect(item)}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 4,
+                      borderBottomWidth: 1,
+                      borderBottomColor: theme.colors.border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Icon name="map-pin" size={14} color={theme.colors.primary} />
+                    <View style={{ marginLeft: 8, flex: 1, minWidth: 0 }}>
+                      <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '600' }}>
+                        {item.name}
+                      </Typography>
+                      <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>
+                        {item.locality ? `${item.locality}, ` : ''}{item.state} &bull; India
                       </Typography>
                     </View>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={() => handleSetPrimary(loc)}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </Card>
+        )}
+
+        {/* Saved Locations List */}
+        {locations.map((loc) => (
+          <Card
+            key={loc.id}
+            style={{
+              marginBottom: theme.spacing.s,
+              padding: theme.spacing.m,
+              borderColor: loc.isDefault ? theme.colors.primary : theme.colors.border,
+              borderWidth: loc.isDefault ? 1.5 : 1,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                  <Icon name="map-pin" size={15} color={loc.isDefault ? theme.colors.primary : theme.colors.textSecondary} />
+                  <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '700', marginLeft: 6, flexShrink: 1 }}>
+                    {loc.label.split(',')[0]}
+                  </Typography>
+                  {loc.isDefault && (
+                    <View
                       style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                        borderRadius: theme.shapes.borderRadius.s,
-                        borderWidth: 1,
-                        borderColor: theme.colors.border,
+                        marginLeft: 8,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: theme.shapes.borderRadius.pill,
+                        backgroundColor: theme.colors.primary,
+                        flexShrink: 0,
                       }}
                     >
-                      <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
-                        Set Primary
+                      <Typography variant="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>
+                        {t('primaryBadge')}
                       </Typography>
-                    </TouchableOpacity>
+                    </View>
                   )}
+                </View>
+                <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>
+                  {loc.label}
+                </Typography>
+              </View>
 
-                  {/* Delete Action */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {!loc.isDefault && (
+                  <TouchableOpacity
+                    onPress={() => handleSetPrimary(loc)}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: theme.shapes.borderRadius.s,
+                      backgroundColor: theme.colors.surfaceSecondary,
+                    }}
+                  >
+                    <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
+                      {t('setAsPrimary')}
+                    </Typography>
+                  </TouchableOpacity>
+                )}
+
+                {locations.length > 1 && (
                   <TouchableOpacity
                     onPress={() => handleDelete(loc)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     style={{
                       padding: 6,
                       borderRadius: theme.shapes.borderRadius.s,
                       backgroundColor: theme.colors.surfaceSecondary,
                     }}
                   >
-                    <Icon name="close" size={14} color={theme.colors.error} />
+                    <Icon name="trash" size={15} color={theme.colors.error} />
                   </TouchableOpacity>
-                </View>
+                )}
               </View>
-            </Card>
-          ))
-        )}
+            </View>
+          </Card>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
 }
-

@@ -7,10 +7,15 @@ import { Card } from '../../components/ui/Card';
 import { Icon } from '../../components/ui/Icon';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useLocationStore } from '../../store/useLocationStore';
+import { useLocaleStore } from '../../store/useLocaleStore';
+import { WeatherAtmosphere } from '../../components/ui/WeatherAtmosphere';
 import { getAlertsForLocation, AlertFeedResult, AlertSeverity } from '../../lib/alertService';
 
 export default function Alerts() {
   const theme = useTheme();
+  const _locale = useLocaleStore((state) => state.locale);
+  void _locale;
+  const t = useLocaleStore((state) => state.t);
   const locations = useLocationStore((state) => state.locations);
   const defaultLoc = locations.find((l) => l.isDefault) || locations[0];
 
@@ -18,6 +23,7 @@ export default function Alerts() {
   const [feedResult, setFeedResult] = useState<AlertFeedResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'red' | 'orange' | 'yellow'>('all');
 
   const selectedLoc = locations.find((l) => l.id === (activeLocId || defaultLoc?.id)) || defaultLoc;
 
@@ -80,28 +86,36 @@ export default function Alerts() {
       case 'orange':
         return theme.colors.warning;
       case 'yellow':
-        return '#D97706'; // Amber
+        return '#D97706';
       case 'advisory':
       default:
         return theme.colors.primary;
     }
   };
 
+  const filteredAlerts = feedResult?.alerts.filter((a) => {
+    if (severityFilter === 'all') return true;
+    return a.severity === severityFilter;
+  }) || [];
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <WeatherAtmosphere weatherType="clouds" />
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: theme.spacing.m }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+        showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: theme.spacing.m }}>
-          <View style={{ flex: 1 }}>
-            <Typography variant="h1" style={{ fontWeight: '800' }}>
-              Weather Alerts
+          <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+            <Typography variant="h1" numberOfLines={1} style={{ fontWeight: '800' }}>
+              {t('alertsHeader')}
             </Typography>
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-              Official meteorological bulletins &bull; Ministry of Earth Sciences / IMD
+            <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
+              {t('imdSource')}
             </Typography>
           </View>
           <TouchableOpacity
@@ -110,6 +124,7 @@ export default function Alerts() {
               padding: 8,
               borderRadius: theme.shapes.borderRadius.s,
               backgroundColor: theme.colors.surfaceSecondary,
+              flexShrink: 0,
             }}
           >
             <Icon name="refresh" size={16} color={theme.colors.primary} />
@@ -135,11 +150,12 @@ export default function Alerts() {
                   >
                     <Typography
                       variant="caption"
+                      numberOfLines={1}
                       color={isSelected ? '#FFFFFF' : theme.colors.text}
                       style={{ fontWeight: isSelected ? '700' : '500' }}
                     >
                       {loc.label.split(',')[0]}
-                      {loc.isDefault ? ' (Primary)' : ''}
+                      {loc.isDefault ? ` (${t('primaryBadge')})` : ''}
                     </Typography>
                   </TouchableOpacity>
                 );
@@ -148,11 +164,51 @@ export default function Alerts() {
           </ScrollView>
         )}
 
+        {/* Severity Filter Tabs */}
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: theme.spacing.m }}>
+          {(['all', 'red', 'orange', 'yellow'] as const).map((filterKey) => {
+            const isSelected = severityFilter === filterKey;
+            const label =
+              filterKey === 'all'
+                ? t('allAlerts')
+                : filterKey === 'red'
+                ? t('redAlert')
+                : filterKey === 'orange'
+                ? t('orangeAlert')
+                : t('yellowAlert');
+            return (
+              <TouchableOpacity
+                key={filterKey}
+                onPress={() => setSeverityFilter(filterKey)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                  backgroundColor: isSelected ? theme.colors.primary : theme.colors.surfaceSecondary,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  numberOfLines={1}
+                  style={{
+                    color: isSelected ? '#FFFFFF' : theme.colors.text,
+                    fontWeight: isSelected ? '700' : '500',
+                    fontSize: 10,
+                  }}
+                >
+                  {label}
+                </Typography>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* Active Location Display */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.m }}>
           <Icon name="map-pin" size={14} color={theme.colors.primary} />
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '700', marginLeft: 4 }}>
-            MONITORING: {selectedLoc?.label || 'Default Location'}
+          <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ fontWeight: '700', marginLeft: 4, flexShrink: 1 }}>
+            {selectedLoc?.label || 'Default Location'}
           </Typography>
         </View>
 
@@ -161,7 +217,7 @@ export default function Alerts() {
           <Card style={{ padding: theme.spacing.xl, alignItems: 'center' }}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
             <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 12 }}>
-              Fetching latest meteorological bulletins...
+              {t('bulletinStatus')}...
             </Typography>
           </Card>
         )}
@@ -181,7 +237,7 @@ export default function Alerts() {
         )}
 
         {/* Clear State (No Active Alerts) */}
-        {!loading && feedResult?.status === 'clear' && (
+        {!loading && (feedResult?.status === 'clear' || filteredAlerts.length === 0) && (
           <Card style={{ padding: theme.spacing.l, alignItems: 'center', marginBottom: theme.spacing.m }}>
             <View
               style={{
@@ -196,20 +252,20 @@ export default function Alerts() {
             >
               <Icon name="sun" size={24} color={theme.colors.primary} />
             </View>
-            <Typography variant="h3" style={{ fontWeight: '700' }}>
-              No Active Severe Warnings
+            <Typography variant="h3" style={{ fontWeight: '700', textAlign: 'center' }}>
+              {t('noActiveAlerts')}
             </Typography>
             <Typography variant="bodyMedium" color={theme.colors.textSecondary} align="center" style={{ marginTop: 6, lineHeight: 20 }}>
-              Atmospheric conditions for {selectedLoc?.label || 'your locality'} are within normal parameters. Mausam continuously monitors IMD nowcasts and live regional radar feeds.
+              {t('noAlertsDesc')}
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 12 }}>
-              Last checked: {feedResult.lastUpdated}
+              Last checked: {feedResult?.lastUpdated || new Date().toLocaleTimeString()}
             </Typography>
           </Card>
         )}
 
         {/* Active Alerts List */}
-        {!loading && feedResult?.status === 'active' && feedResult.alerts.map((alert) => {
+        {!loading && feedResult?.status === 'active' && filteredAlerts.map((alert) => {
           const sevColor = getSeverityColor(alert.severity);
           return (
             <Card
@@ -234,7 +290,7 @@ export default function Alerts() {
                 </View>
               </View>
 
-              <Typography variant="h3" style={{ fontWeight: '800', marginBottom: 4 }}>
+              <Typography variant="h3" numberOfLines={2} style={{ fontWeight: '800', marginBottom: 4 }}>
                 {alert.title}
               </Typography>
 
@@ -256,7 +312,7 @@ export default function Alerts() {
                   }}
                 >
                   <Typography variant="caption" style={{ fontWeight: '700', marginBottom: 2 }}>
-                    PRECAUTIONS & ADVISORY:
+                    {t('safetyInstructions')}:
                   </Typography>
                   <Typography variant="caption" color={theme.colors.textSecondary} style={{ lineHeight: 16 }}>
                     {alert.instructions}
@@ -277,4 +333,3 @@ export default function Alerts() {
     </SafeAreaView>
   );
 }
-

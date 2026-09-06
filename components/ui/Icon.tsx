@@ -33,7 +33,10 @@ export type IconName =
   | 'radar'
   | 'layers'
   | 'globe'
-  | 'bell';
+  | 'bell'
+  | 'x'
+  | 'plus'
+  | 'trash';
 
 interface IconProps {
   name: IconName;
@@ -240,11 +243,28 @@ export function Icon({ name, size = 22, color = '#000000', strokeWidth = 2 }: Ic
         </Svg>
       );
 
+    case 'x':
     case 'close':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Line x1="18" y1="6" x2="6" y2="18" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
           <Line x1="6" y1="6" x2="18" y2="18" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case 'plus':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Line x1="12" y1="5" x2="12" y2="19" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="5" y1="12" x2="19" y2="12" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case 'trash':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Polyline points="3 6 5 6 21 6" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
 

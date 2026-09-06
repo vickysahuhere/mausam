@@ -8,7 +8,7 @@ interface Props extends TextProps {
   align?: 'left' | 'center' | 'right';
 }
 
-export function Typography({ variant = 'body', color, align = 'left', style, maxFontSizeMultiplier = 1.35, ...props }: Props) {
+export function Typography({ variant = 'body', color, align = 'left', style, maxFontSizeMultiplier = 1.2, ...props }: Props) {
   const theme = useTheme();
 
   const getVariantStyles = () => {
@@ -16,19 +16,19 @@ export function Typography({ variant = 'body', color, align = 'left', style, max
       case 'h1': 
         return { 
           fontSize: theme.typography.sizes.xxl, 
-          lineHeight: Math.round(theme.typography.sizes.xxl * 1.2), 
+          lineHeight: Math.round(theme.typography.sizes.xxl * 1.25), 
           fontWeight: 'bold' as const 
         };
       case 'h2': 
         return { 
           fontSize: theme.typography.sizes.xl, 
-          lineHeight: Math.round(theme.typography.sizes.xl * 1.25), 
+          lineHeight: Math.round(theme.typography.sizes.xl * 1.3), 
           fontWeight: 'bold' as const 
         };
       case 'h3': 
         return { 
           fontSize: theme.typography.sizes.l, 
-          lineHeight: Math.round(theme.typography.sizes.l * 1.3), 
+          lineHeight: Math.round(theme.typography.sizes.l * 1.35), 
           fontWeight: 'bold' as const 
         };
       case 'bodyMedium': 
@@ -60,6 +60,7 @@ export function Typography({ variant = 'body', color, align = 'left', style, max
           color: color || theme.colors.text,
           textAlign: align,
           fontFamily: theme.typography.fontFamily.regular,
+          includeFontPadding: false,
         },
         style,
       ]}

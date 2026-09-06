@@ -2,11 +2,17 @@ export interface MausamTheme {
   id: string;
   name: string;
   tagline: string;
+  isCustom?: boolean;
   artDirection: {
     cardStyle: 'standard' | 'glass' | 'flat2d' | 'clinical' | 'oled' | 'pebble' | 'ticket' | 'rugged' | 'transit' | 'editorial';
     badgeStyle: 'pill' | 'square' | 'outline' | 'neon';
     dividerStyle: 'solid' | 'dashed' | 'hairline';
     shadowOffset: { width: number; height: number };
+    iconStyle?: 'line' | 'bold' | 'neon';
+    wallpaper?: {
+      type: 'solid' | 'gradient' | 'mesh';
+      gradientColors?: [string, string];
+    };
   };
   colors: {
     background: string;

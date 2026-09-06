@@ -44,6 +44,9 @@ export function Button({ title, variant = 'primary', loading, style, ...props }:
     fontSize: theme.typography.sizes.m,
     color: getTextColor(),
     fontFamily: theme.typography.fontFamily.bold,
+    textAlign: 'center',
+    flexShrink: 1,
+    includeFontPadding: false,
   };
 
   return (
@@ -55,7 +58,14 @@ export function Button({ title, variant = 'primary', loading, style, ...props }:
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
       ) : (
-        <Text style={textStyle}>{title}</Text>
+        <Text
+          style={textStyle}
+          numberOfLines={2}
+          maxFontSizeMultiplier={1.2}
+          adjustsFontSizeToFit={true}
+        >
+          {title}
+        </Text>
       )}
     </TouchableOpacity>
   );

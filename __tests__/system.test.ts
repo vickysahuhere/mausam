@@ -102,3 +102,18 @@ test('Bhasha Engine: 6 Regional Languages Translation Integrity', () => {
     }
   }
 });
+
+test('Custom Theme Studio: Template validation & structure', () => {
+  const { STARTER_CUSTOM_THEMES } = require('../store/useCustomThemeStore');
+  assert.ok(STARTER_CUSTOM_THEMES.length >= 3, 'Must have at least 3 starter custom themes');
+
+  for (const theme of STARTER_CUSTOM_THEMES) {
+    assert.ok(theme.id.startsWith('custom-'), `${theme.id} must be prefixed with custom-`);
+    assert.strictEqual(theme.isCustom, true, `${theme.id} must have isCustom flag`);
+    assert.ok(theme.colors.background, `${theme.id} must have background color`);
+    assert.ok(theme.colors.surface, `${theme.id} must have surface color`);
+    assert.ok(theme.colors.primary, `${theme.id} must have primary color`);
+    assert.ok(theme.colors.text, `${theme.id} must have text color`);
+    assert.ok(theme.artDirection.cardStyle, `${theme.id} must define cardStyle`);
+  }
+});
