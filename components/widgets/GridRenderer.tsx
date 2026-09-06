@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, ScrollView, TouchableOpacity } from 'react-native';
-import { useLayoutStore } from '../../store/useLayoutStore';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
+import { useLayoutStore, LayoutItem } from '../../store/useLayoutStore';
 import {
   CurrentSummaryWidget,
   AqiWidget,
@@ -23,6 +24,7 @@ import {
 } from './WeatherWidgets';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Typography } from '../ui/Typography';
+import { Icon } from '../ui/Icon';
 
 const WIDGET_MAP: Record<string, React.FC<any>> = {
   current_summary: CurrentSummaryWidget,
@@ -63,69 +65,133 @@ export function GridRenderer({ isCustomizing }: { isCustomizing: boolean }) {
     setLayout(newLayout);
   };
 
+  const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<LayoutItem>) => {
+    const WidgetComponent = WIDGET_MAP[item.type];
+    if (!WidgetComponent) return null;
+    const index = getIndex() ?? 0;
+
+    return (
+      <ScaleDecorator>
+        <View
+          style={{
+            marginBottom: isCustomizing ? theme.spacing.s : 0,
+            opacity: isActive ? 0.92 : 1,
+            transform: [{ scale: isActive ? 1.02 : 1 }],
+          }}
+        >
+          {isCustomizing && (
+            <TouchableOpacity
+              onLongPress={drag}
+              delayLongPress={100}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: isActive ? theme.colors.primary : theme.colors.surfaceSecondary,
+                borderRadius: theme.shapes.borderRadius.s,
+                paddingVertical: 7,
+                marginBottom: 6,
+                borderWidth: 1,
+                borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                borderStyle: 'dashed',
+              }}
+            >
+              <Icon name="sliders" size={13} color={isActive ? '#fff' : theme.colors.primary} />
+              <Typography
+                variant="caption"
+                color={isActive ? '#fff' : theme.colors.primary}
+                style={{ fontWeight: '700', marginLeft: 6, fontSize: 11 }}
+              >
+                {isActive ? 'Dragging Widget...' : 'Hold to Drag & Reorder'}
+              </Typography>
+            </TouchableOpacity>
+          )}
+
+          <WidgetComponent
+            id={item.id}
+            isCustomizing={isCustomizing}
+            onRemove={() => removeWidget(item.id)}
+          />
+
+          {isCustomizing && (
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'flex-end',
+                gap: 8,
+                marginTop: -4,
+                marginBottom: 12,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => moveUp(index)}
+                disabled={index === 0}
+                style={{
+                  paddingVertical: 3,
+                  paddingHorizontal: 10,
+                  borderRadius: theme.shapes.borderRadius.s,
+                  backgroundColor: theme.colors.surfaceSecondary,
+                  opacity: index === 0 ? 0.35 : 1,
+                }}
+              >
+                <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                  Move Up
+                </Typography>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => moveDown(index)}
+                disabled={index === layout.length - 1}
+                style={{
+                  paddingVertical: 3,
+                  paddingHorizontal: 10,
+                  borderRadius: theme.shapes.borderRadius.s,
+                  backgroundColor: theme.colors.surfaceSecondary,
+                  opacity: index === layout.length - 1 ? 0.35 : 1,
+                }}
+              >
+                <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                  Move Down
+                </Typography>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </ScaleDecorator>
+    );
+  };
+
+  if (isCustomizing) {
+    return (
+      <DraggableFlatList
+        data={layout}
+        onDragEnd={({ data }) => setLayout(data)}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        containerStyle={{ flex: 1, padding: theme.spacing.m }}
+        showsVerticalScrollIndicator={false}
+        ListFooterComponent={<View style={{ height: 120 }} />}
+      />
+    );
+  }
+
   return (
     <ScrollView style={{ flex: 1, padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
-      {layout.map((item, index) => {
+      {layout.map((item) => {
         const WidgetComponent = WIDGET_MAP[item.type];
         if (!WidgetComponent) return null;
 
         return (
-          <View key={item.id} style={{ marginBottom: isCustomizing ? theme.spacing.s : 0 }}>
+          <View key={item.id}>
             <WidgetComponent
               id={item.id}
-              isCustomizing={isCustomizing}
+              isCustomizing={false}
               onRemove={() => removeWidget(item.id)}
             />
-
-            {/* Reorder controls in customize mode */}
-            {isCustomizing && (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'flex-end',
-                  gap: 8,
-                  marginTop: -6,
-                  marginBottom: 14,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() => moveUp(index)}
-                  disabled={index === 0}
-                  style={{
-                    paddingVertical: 3,
-                    paddingHorizontal: 10,
-                    borderRadius: theme.shapes.borderRadius.s,
-                    backgroundColor: theme.colors.surfaceSecondary,
-                    opacity: index === 0 ? 0.35 : 1,
-                  }}
-                >
-                  <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
-                    Move Up
-                  </Typography>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => moveDown(index)}
-                  disabled={index === layout.length - 1}
-                  style={{
-                    paddingVertical: 3,
-                    paddingHorizontal: 10,
-                    borderRadius: theme.shapes.borderRadius.s,
-                    backgroundColor: theme.colors.surfaceSecondary,
-                    opacity: index === layout.length - 1 ? 0.35 : 1,
-                  }}
-                >
-                  <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
-                    Move Down
-                  </Typography>
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         );
       })}
-
-      {/* Spacer for bottom tab bar */}
       <View style={{ height: 110 }} />
     </ScrollView>
   );

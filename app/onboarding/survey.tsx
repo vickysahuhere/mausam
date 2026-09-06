@@ -11,38 +11,61 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useLayoutStore } from '../../store/useLayoutStore';
 import { useLocationStore } from '../../store/useLocationStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useLocaleStore } from '../../store/useLocaleStore';
+import { SupportedLocale } from '../../lib/i18n';
+
+const LANGUAGE_STEP_OPTIONS: { id: SupportedLocale; label: string; sub: string }[] = [
+  { id: 'en', label: 'English', sub: 'Standard' },
+  { id: 'hi', label: 'हिन्दी (Hindi)', sub: 'उत्तर और मध्य भारत' },
+  { id: 'mr', label: 'मराठी (Marathi)', sub: 'महाराष्ट्र' },
+  { id: 'ta', label: 'தமிழ் (Tamil)', sub: 'தமிழ்நாடு' },
+  { id: 'bn', label: 'বাংলা (Bengali)', sub: 'পশ্চিমবঙ্গ' },
+  { id: 'te', label: 'తెలుగు (Telugu)', sub: 'ఆంధ్రప్రదేశ్ & తెలంగాణ' },
+];
 
 export default function Survey() {
   const router = useRouter();
   const setPersonaVector = useAuthStore((state) => state.setPersonaVector);
   const completeSurvey = useAuthStore((state) => state.completeSurvey);
   const theme = useTheme();
+  const { locale, setLocale, t } = useLocaleStore();
   
+  // Step 0 is Language, Steps 1..N are Lifestyle Questions
   const [currentStep, setCurrentStep] = useState(0);
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   
-  const currentQuestion = SURVEY_QUESTIONS[currentStep];
-  const currentSelections = selections[currentQuestion.id] || [];
-  const canProceed = currentSelections.length > 0;
+  const totalSteps = 1 + SURVEY_QUESTIONS.length;
+  const isLanguageStep = currentStep === 0;
+  const currentLifestyleQuestion = !isLanguageStep ? SURVEY_QUESTIONS[currentStep - 1] : null;
+
+  const currentSelections = isLanguageStep
+    ? [locale]
+    : selections[currentLifestyleQuestion!.id] || [];
+  const canProceed = isLanguageStep ? !!locale : currentSelections.length > 0;
+
+  const handleSelectLanguage = (lang: SupportedLocale) => {
+    setLocale(lang);
+  };
 
   const handleToggleOption = (optionId: string) => {
+    if (!currentLifestyleQuestion) return;
     setSelections(prev => {
-      const selected = prev[currentQuestion.id] || [];
-      if (currentQuestion.type === 'single') {
-        return { ...prev, [currentQuestion.id]: [optionId] };
+      const selected = prev[currentLifestyleQuestion.id] || [];
+      if (currentLifestyleQuestion.type === 'single') {
+        return { ...prev, [currentLifestyleQuestion.id]: [optionId] };
       }
       
       if (selected.includes(optionId)) {
-        return { ...prev, [currentQuestion.id]: selected.filter(id => id !== optionId) };
+        return { ...prev, [currentLifestyleQuestion.id]: selected.filter(id => id !== optionId) };
       } else if (selected.length < 3) {
-        return { ...prev, [currentQuestion.id]: [...selected, optionId] };
+        return { ...prev, [currentLifestyleQuestion.id]: [...selected, optionId] };
       }
       return prev;
     });
   };
 
   const handleNext = () => {
-    if (currentStep < SURVEY_QUESTIONS.length - 1) {
+    if (currentStep < totalSteps - 1) {
       setCurrentStep(prev => prev + 1);
     } else {
       finishSurvey();
@@ -74,7 +97,7 @@ export default function Survey() {
         paddingVertical: theme.spacing.m,
       }}>
         <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
-          {SURVEY_QUESTIONS.map((_, idx) => (
+          {Array.from({ length: totalSteps }).map((_, idx) => (
             <View 
               key={idx} 
               style={{
@@ -93,42 +116,90 @@ export default function Survey() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.l }}>
-        <Typography variant="h2" style={{ marginBottom: theme.spacing.xs }}>{currentQuestion.title}</Typography>
-        {currentQuestion.subtitle && (
-          <Typography variant="bodyMedium" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.xl }}>
-            {currentQuestion.subtitle}
-          </Typography>
-        )}
+        {isLanguageStep ? (
+          <>
+            <Typography variant="h2" style={{ marginBottom: theme.spacing.xs, letterSpacing: -0.5 }}>
+              Choose Your Language
+            </Typography>
+            <Typography variant="bodyMedium" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.xl }}>
+              Select your preferred language for forecasts, alerts & radar
+            </Typography>
 
-        <View style={{ gap: theme.spacing.m }}>
-          {currentQuestion.options.map((option) => {
-            const isSelected = currentSelections.includes(option.id);
-            return (
-              <TouchableOpacity
-                key={option.id}
-                activeOpacity={0.7}
-                onPress={() => handleToggleOption(option.id)}
-              >
-                <Card style={[
-                  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderColor: theme.colors.border },
-                  isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface } // Keeping simple selection visual
-                ]}>
-                  <Typography 
-                    variant="bodyMedium" 
-                    color={isSelected ? theme.colors.primary : theme.colors.text}
-                    style={{ flex: 1, flexShrink: 1, minWidth: 0, marginRight: theme.spacing.s }}
+            <View style={{ gap: theme.spacing.m }}>
+              {LANGUAGE_STEP_OPTIONS.map((opt) => {
+                const isSelected = locale === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectLanguage(opt.id)}
                   >
-                    {option.label}
-                  </Typography>
-                  <View style={[
-                    { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: theme.colors.border, flexShrink: 0 },
-                    isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary }
-                  ]} />
-                </Card>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                    <Card style={[
+                      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderColor: theme.colors.border },
+                      isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface }
+                    ]}>
+                      <View style={{ flex: 1, marginRight: theme.spacing.s }}>
+                        <Typography 
+                          variant="bodyMedium" 
+                          color={isSelected ? theme.colors.primary : theme.colors.text}
+                          style={{ fontWeight: isSelected ? '700' : '600' }}
+                        >
+                          {opt.label}
+                        </Typography>
+                        <Typography variant="caption" color={theme.colors.textSecondary}>
+                          {opt.sub}
+                        </Typography>
+                      </View>
+                      <View style={[
+                        { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: theme.colors.border },
+                        isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary }
+                      ]} />
+                    </Card>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        ) : (
+          <>
+            <Typography variant="h2" style={{ marginBottom: theme.spacing.xs }}>{currentLifestyleQuestion!.title}</Typography>
+            {currentLifestyleQuestion!.subtitle && (
+              <Typography variant="bodyMedium" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.xl }}>
+                {currentLifestyleQuestion!.subtitle}
+              </Typography>
+            )}
+
+            <View style={{ gap: theme.spacing.m }}>
+              {currentLifestyleQuestion!.options.map((option) => {
+                const isSelected = currentSelections.includes(option.id);
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    activeOpacity={0.7}
+                    onPress={() => handleToggleOption(option.id)}
+                  >
+                    <Card style={[
+                      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderColor: theme.colors.border },
+                      isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface }
+                    ]}>
+                      <Typography 
+                        variant="bodyMedium" 
+                        color={isSelected ? theme.colors.primary : theme.colors.text}
+                        style={{ flex: 1, flexShrink: 1, minWidth: 0, marginRight: theme.spacing.s }}
+                      >
+                        {option.label}
+                      </Typography>
+                      <View style={[
+                        { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: theme.colors.border, flexShrink: 0 },
+                        isSelected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary }
+                      ]} />
+                    </Card>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <View style={{
@@ -138,7 +209,7 @@ export default function Survey() {
         borderTopColor: theme.colors.border,
       }}>
         <Button 
-          title={currentStep === SURVEY_QUESTIONS.length - 1 ? "Finish" : "Next"} 
+          title={currentStep === totalSteps - 1 ? (t('finish') || 'Finish') : (t('next') || 'Continue')} 
           onPress={handleNext}
           disabled={!canProceed}
         />

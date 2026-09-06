@@ -111,11 +111,11 @@ export default function Alerts() {
       >
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: theme.spacing.m }}>
-          <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-            <Typography variant="h1" numberOfLines={1} style={{ fontWeight: '800' }}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Typography variant="h2" style={{ fontWeight: '800', letterSpacing: -0.5 }}>
               {t('alertsHeader')}
             </Typography>
-            <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
+            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
               {t('imdSource')}
             </Typography>
           </View>

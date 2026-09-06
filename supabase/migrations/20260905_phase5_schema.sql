@@ -6,6 +6,7 @@
 -- Stores personalized user preferences, blended persona vectors, and theme selections.
 CREATE TABLE IF NOT EXISTS public.user_profiles (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT DEFAULT NULL,
   persona_vector JSONB DEFAULT NULL,
   dominant_persona TEXT DEFAULT 'custom',
   active_theme_id TEXT DEFAULT 'custom',
@@ -147,9 +148,11 @@ CREATE POLICY "Users can delete own layout"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.user_profiles (user_id, survey_completed)
-  VALUES (new.id, false)
-  ON CONFLICT (user_id) DO NOTHING;
+  INSERT INTO public.user_profiles (user_id, full_name, survey_completed)
+  VALUES (new.id, new.raw_user_meta_data->>'full_name', false)
+  ON CONFLICT (user_id) DO UPDATE
+    SET full_name = EXCLUDED.full_name
+    WHERE user_profiles.full_name IS NULL;
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

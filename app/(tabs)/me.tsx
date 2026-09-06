@@ -31,6 +31,9 @@ export default function MeScreen() {
     signOut,
     signInWithPassword,
     signUpWithPassword,
+    verifyOtp,
+    checkVerificationStatus,
+    resendVerificationEmail,
     setPersonaVector,
     completeSurvey,
     setGuest,
@@ -47,10 +50,13 @@ export default function MeScreen() {
   // Cloud Auth & Sync state
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authFullName, setAuthFullName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [meAwaitingVerification, setMeAwaitingVerification] = useState(false);
+  const [meOtpCode, setMeOtpCode] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [devTapCount, setDevTapCount] = useState(0);
   const [devModeUnlocked, setDevModeUnlocked] = useState(false);
@@ -112,28 +118,108 @@ export default function MeScreen() {
       setAuthError('Password must be at least 6 characters.');
       return;
     }
+    if (authMode === 'signup' && !authFullName.trim()) {
+      setAuthError('Please enter your full name.');
+      return;
+    }
 
     setAuthLoading(true);
     try {
-      const res = authMode === 'signin'
-        ? await signInWithPassword(email, authPassword)
-        : await signUpWithPassword(email, authPassword);
-
-      if (res.success) {
-        setShowAuthForm(false);
-        setAuthEmail('');
-        setAuthPassword('');
-        Alert.alert(
-          'Account Connected',
-          authMode === 'signup'
-            ? 'Account created! Your current dashboard and locations have been saved to the cloud.'
-            : 'Welcome back! Your dashboard and cloud data have been synchronized.'
-        );
+      if (authMode === 'signin') {
+        const res = await signInWithPassword(email, authPassword);
+        if (res.success) {
+          setShowAuthForm(false);
+          setAuthEmail('');
+          setAuthPassword('');
+          Alert.alert('Account Connected', 'Welcome back! Your dashboard and cloud data have been synchronized.');
+        } else {
+          setAuthError(res.error || 'Authentication failed. Please check your credentials.');
+        }
       } else {
-        setAuthError(res.error || 'Authentication failed. Please try again.');
+        const res = await signUpWithPassword(email, authPassword, authFullName.trim());
+        if (res.success) {
+          if (res.requiresVerification) {
+            setMeAwaitingVerification(true);
+          } else {
+            setShowAuthForm(false);
+            setAuthEmail('');
+            setAuthPassword('');
+            setAuthFullName('');
+            Alert.alert('Account Created', 'Account created! Your dashboard and locations have been saved to the cloud.');
+          }
+        } else {
+          setAuthError(res.error || 'Registration failed. Please try again.');
+        }
       }
     } catch (err: any) {
       setAuthError(err?.message || 'An unexpected error occurred.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleMeVerifyOtp = async () => {
+    const trimmed = meOtpCode.trim();
+    if (!trimmed || trimmed.length < 6) {
+      setAuthError('Please enter the 6-digit confirmation code.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await verifyOtp(authEmail.trim(), trimmed);
+      if (res.success) {
+        setMeAwaitingVerification(false);
+        setShowAuthForm(false);
+        setAuthEmail('');
+        setAuthPassword('');
+        setAuthFullName('');
+        setMeOtpCode('');
+        Alert.alert('Email Confirmed!', 'Your account has been verified and synced with Supabase.');
+      } else {
+        setAuthError(res.error || 'Invalid or expired confirmation code.');
+      }
+    } catch (err: any) {
+      setAuthError(err?.message || 'Verification failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleMeCheckLink = async () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await checkVerificationStatus(authEmail.trim(), authPassword);
+      if (res.success) {
+        setMeAwaitingVerification(false);
+        setShowAuthForm(false);
+        setAuthEmail('');
+        setAuthPassword('');
+        setAuthFullName('');
+        setMeOtpCode('');
+        Alert.alert('Welcome!', 'Your email is confirmed and your account is active.');
+      } else {
+        setAuthError('Email not verified yet. Please tap the link in your email or enter the 6-digit code.');
+      }
+    } catch (err: any) {
+      setAuthError(err?.message || 'Verification check failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleMeResend = async () => {
+    setAuthLoading(true);
+    try {
+      const res = await resendVerificationEmail(authEmail.trim());
+      if (res.success) {
+        Alert.alert('Sent', 'Confirmation email has been resent. Please check your inbox.');
+      } else {
+        setAuthError(res.error || 'Failed to resend confirmation email.');
+      }
+    } catch (err: any) {
+      setAuthError(err?.message || 'Failed to resend email.');
     } finally {
       setAuthLoading(false);
     }
@@ -208,7 +294,7 @@ export default function MeScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Typography variant="h3" style={{ fontWeight: '700' }}>
-                {hasSession && user ? user.email || 'Registered User' : 'Guest Explorer'}
+                {hasSession && user ? user.fullName || user.email || 'Registered User' : 'Guest Explorer'}
               </Typography>
               <Typography variant="caption" color={theme.colors.textSecondary}>
                 {hasSession && user ? 'Cloud Synced \u2022 PostgreSQL / RLS' : 'Local device session \u2022 No cloud backup'}
@@ -321,90 +407,184 @@ export default function MeScreen() {
               {/* Inline Auth Form */}
               {showAuthForm && (
                 <View style={{ marginTop: 12, backgroundColor: theme.colors.surfaceSecondary, padding: 12, borderRadius: theme.shapes.borderRadius.s }}>
-                  {/* Mode tabs */}
-                  <View style={{ flexDirection: 'row', marginBottom: 10, backgroundColor: theme.colors.surface, borderRadius: 6, padding: 2 }}>
-                    <TouchableOpacity
-                      onPress={() => { setAuthMode('signin'); setAuthError(null); }}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 6,
-                        alignItems: 'center',
-                        borderRadius: 4,
-                        backgroundColor: authMode === 'signin' ? theme.colors.surfaceSecondary : 'transparent',
-                      }}
-                    >
-                      <Typography variant="caption" style={{ fontWeight: authMode === 'signin' ? '700' : '500' }}>
-                        Sign In
-                      </Typography>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => { setAuthMode('signup'); setAuthError(null); }}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 6,
-                        alignItems: 'center',
-                        borderRadius: 4,
-                        backgroundColor: authMode === 'signup' ? theme.colors.surfaceSecondary : 'transparent',
-                      }}
-                    >
-                      <Typography variant="caption" style={{ fontWeight: authMode === 'signup' ? '700' : '500' }}>
-                        Create Account
-                      </Typography>
-                    </TouchableOpacity>
-                  </View>
+                  {meAwaitingVerification ? (
+                    <View>
+                      <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                        <Typography variant="bodyMedium" style={{ fontWeight: '700', textAlign: 'center' }}>
+                          Confirm Your Email
+                        </Typography>
+                        <Typography variant="caption" color={theme.colors.textSecondary} style={{ textAlign: 'center', marginTop: 4 }}>
+                          Code & link sent to {authEmail}
+                        </Typography>
+                      </View>
 
-                  {authError && (
-                    <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
-                      {authError}
-                    </Typography>
+                      {authError && (
+                        <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
+                          {authError}
+                        </Typography>
+                      )}
+
+                      <TextInput
+                        value={meOtpCode}
+                        onChangeText={setMeOtpCode}
+                        placeholder="123456"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        keyboardType="number-pad"
+                        maxLength={8}
+                        style={{
+                          backgroundColor: theme.colors.surface,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          fontSize: 16,
+                          fontWeight: '700',
+                          color: theme.colors.text,
+                          textAlign: 'center',
+                          letterSpacing: 4,
+                          marginBottom: 8,
+                        }}
+                      />
+
+                      <Button
+                        title={authLoading ? 'Verifying...' : 'Verify Code'}
+                        variant="primary"
+                        disabled={authLoading || meOtpCode.trim().length < 6}
+                        onPress={handleMeVerifyOtp}
+                        style={{ marginBottom: 6 }}
+                      />
+
+                      <Button
+                        title={authLoading ? 'Checking...' : "I've Clicked Email Link"}
+                        variant="outline"
+                        disabled={authLoading}
+                        onPress={handleMeCheckLink}
+                        style={{ marginBottom: 8 }}
+                      />
+
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <TouchableOpacity onPress={handleMeResend} disabled={authLoading}>
+                          <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                            Resend Email
+                          </Typography>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => { setMeAwaitingVerification(false); setAuthError(null); }}>
+                          <Typography variant="caption" color={theme.colors.textSecondary}>
+                            Cancel
+                          </Typography>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      {/* Mode tabs */}
+                      <View style={{ flexDirection: 'row', marginBottom: 10, backgroundColor: theme.colors.surface, borderRadius: 6, padding: 2 }}>
+                        <TouchableOpacity
+                          onPress={() => { setAuthMode('signin'); setAuthError(null); }}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            alignItems: 'center',
+                            borderRadius: 4,
+                            backgroundColor: authMode === 'signin' ? theme.colors.surfaceSecondary : 'transparent',
+                          }}
+                        >
+                          <Typography variant="caption" style={{ fontWeight: authMode === 'signin' ? '700' : '500' }}>
+                            Sign In
+                          </Typography>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => { setAuthMode('signup'); setAuthError(null); }}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            alignItems: 'center',
+                            borderRadius: 4,
+                            backgroundColor: authMode === 'signup' ? theme.colors.surfaceSecondary : 'transparent',
+                          }}
+                        >
+                          <Typography variant="caption" style={{ fontWeight: authMode === 'signup' ? '700' : '500' }}>
+                            Create Account
+                          </Typography>
+                        </TouchableOpacity>
+                      </View>
+
+                      {authError && (
+                        <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
+                          {authError}
+                        </Typography>
+                      )}
+
+                      {authMode === 'signup' && (
+                        <TextInput
+                          value={authFullName}
+                          onChangeText={setAuthFullName}
+                          placeholder="Full Name (e.g. Vicky Sahu)"
+                          placeholderTextColor={theme.colors.textSecondary}
+                          autoCapitalize="words"
+                          style={{
+                            backgroundColor: theme.colors.surface,
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            paddingHorizontal: 10,
+                            paddingVertical: 8,
+                            fontSize: 13,
+                            color: theme.colors.text,
+                            marginBottom: 8,
+                          }}
+                        />
+                      )}
+
+                      <TextInput
+                        value={authEmail}
+                        onChangeText={setAuthEmail}
+                        placeholder="Email address"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        style={{
+                          backgroundColor: theme.colors.surface,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          fontSize: 13,
+                          color: theme.colors.text,
+                          marginBottom: 8,
+                        }}
+                      />
+
+                      <TextInput
+                        value={authPassword}
+                        onChangeText={setAuthPassword}
+                        placeholder={authMode === 'signup' ? 'Password (min 6 chars)' : 'Password'}
+                        placeholderTextColor={theme.colors.textSecondary}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        style={{
+                          backgroundColor: theme.colors.surface,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          fontSize: 13,
+                          color: theme.colors.text,
+                          marginBottom: 10,
+                        }}
+                      />
+
+                      <Button
+                        title={authLoading ? 'Connecting...' : authMode === 'signin' ? 'Sign In & Sync' : 'Register & Sync'}
+                        variant="primary"
+                        disabled={authLoading}
+                        onPress={handleAuthSubmit}
+                      />
+                    </>
                   )}
-
-                  <TextInput
-                    value={authEmail}
-                    onChangeText={setAuthEmail}
-                    placeholder="Email address"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={{
-                      backgroundColor: theme.colors.surface,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
-                      fontSize: 13,
-                      color: theme.colors.text,
-                      marginBottom: 8,
-                    }}
-                  />
-
-                  <TextInput
-                    value={authPassword}
-                    onChangeText={setAuthPassword}
-                    placeholder={authMode === 'signup' ? 'Password (min 6 chars)' : 'Password'}
-                    placeholderTextColor={theme.colors.textSecondary}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    style={{
-                      backgroundColor: theme.colors.surface,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
-                      fontSize: 13,
-                      color: theme.colors.text,
-                      marginBottom: 10,
-                    }}
-                  />
-
-                  <Button
-                    title={authLoading ? 'Connecting...' : authMode === 'signin' ? 'Sign In & Sync' : 'Register & Sync'}
-                    variant="primary"
-                    disabled={authLoading}
-                    onPress={handleAuthSubmit}
-                  />
                 </View>
               )}
             </View>

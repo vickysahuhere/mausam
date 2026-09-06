@@ -100,7 +100,10 @@ export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
   }, [animationsEnabled, cloud1, cloud2, sunPulse, rainStreak]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={children ? styles.container : StyleSheet.absoluteFill}
+      pointerEvents={children ? 'auto' : 'none'}
+    >
       {/* Atmosphere Background Elements */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {/* Soft Sun/Glow orb */}

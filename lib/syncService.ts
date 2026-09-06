@@ -105,9 +105,12 @@ export async function migrateGuestToAccount(userId: string): Promise<boolean> {
       return true;
     }
 
+    const userFullName = getAuthStore().getState().user?.fullName;
+
     // 1. Migrate user_profiles
     const { error: profileErr } = await supabase.from('user_profiles').upsert({
       user_id: userId,
+      full_name: userFullName,
       persona_vector: localVector,
       active_theme_id: localTheme,
       survey_completed: true,

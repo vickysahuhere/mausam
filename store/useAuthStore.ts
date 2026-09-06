@@ -8,6 +8,7 @@ import { migrateGuestToAccount, syncFromCloud } from '../lib/syncService';
 export interface AuthUser {
   id: string;
   email?: string;
+  fullName?: string;
 }
 
 interface AuthState {
@@ -23,7 +24,13 @@ interface AuthState {
   completeSurvey: () => void;
 
   signInWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
-  signUpWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  signUpWithPassword: (
+    email: string,
+    pass: string,
+    fullName?: string
+  ) => Promise<{ success: boolean; error?: string; requiresVerification?: boolean; email?: string }>;
+  resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  checkVerificationStatus: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signInWithOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
   verifyOtp: (email: string, token: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -81,13 +88,14 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      signUpWithPassword: async (email, password) => {
+      signUpWithPassword: async (email, password, fullName = '') => {
         try {
           if (!isSupabaseConfigured()) {
             // Offline mock authentication fallback
             const mockUser: AuthUser = {
               id: `user-${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
               email,
+              fullName,
             };
             set({ hasSession: true, isGuest: false, user: mockUser });
             await migrateGuestToAccount(mockUser.id);
@@ -97,19 +105,56 @@ export const useAuthStore = create<AuthState>()(
           const { data, error } = await supabase.auth.signUp({
             email,
             password,
+            options: {
+              data: {
+                full_name: fullName.trim(),
+              },
+            },
           });
 
           if (error) return { success: false, error: error.message };
 
           if (data.user) {
-            const authUser: AuthUser = { id: data.user.id, email: data.user.email };
+            // Check if email confirmation is required (session is null)
+            if (!data.session) {
+              return {
+                success: true,
+                requiresVerification: true,
+                email: data.user.email || email,
+              };
+            }
+
+            // If session already exists immediately
+            const authUser: AuthUser = {
+              id: data.user.id,
+              email: data.user.email,
+              fullName: data.user.user_metadata?.full_name || fullName,
+            };
             set({ hasSession: true, isGuest: false, user: authUser });
             await migrateGuestToAccount(data.user.id);
             return { success: true };
           }
-          return { success: false, error: 'Account created. Please check your email to verify.' };
+          return { success: false, error: 'Registration failed' };
         } catch (e: any) {
           return { success: false, error: e?.message || 'Registration error' };
+        }
+      },
+
+      checkVerificationStatus: async (email, password) => {
+        return get().signInWithPassword(email, password);
+      },
+
+      resendVerificationEmail: async (email) => {
+        try {
+          if (!isSupabaseConfigured()) return { success: true };
+          const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email,
+          });
+          if (error) return { success: false, error: error.message };
+          return { success: true };
+        } catch (e: any) {
+          return { success: false, error: e?.message || 'Failed to resend email' };
         }
       },
 
@@ -138,18 +183,41 @@ export const useAuthStore = create<AuthState>()(
             return { success: true };
           }
 
+          // 1. Try signup verification type
           const { data, error } = await supabase.auth.verifyOtp({
             email,
             token,
-            type: 'magiclink',
+            type: 'signup',
           });
 
-          if (error) return { success: false, error: error.message };
+          if (error) {
+            // 2. Fallback: try email OTP verification
+            const { data: dataEmail, error: errEmail } = await supabase.auth.verifyOtp({
+              email,
+              token,
+              type: 'email',
+            });
+            if (errEmail) return { success: false, error: errEmail.message };
+            if (dataEmail.user) {
+              const authUser: AuthUser = {
+                id: dataEmail.user.id,
+                email: dataEmail.user.email,
+                fullName: dataEmail.user.user_metadata?.full_name,
+              };
+              set({ hasSession: true, isGuest: false, user: authUser });
+              await migrateGuestToAccount(dataEmail.user.id);
+              return { success: true };
+            }
+          }
 
           if (data.user) {
-            const authUser: AuthUser = { id: data.user.id, email: data.user.email };
+            const authUser: AuthUser = {
+              id: data.user.id,
+              email: data.user.email,
+              fullName: data.user.user_metadata?.full_name,
+            };
             set({ hasSession: true, isGuest: false, user: authUser });
-            await syncFromCloud(data.user.id);
+            await migrateGuestToAccount(data.user.id);
             return { success: true };
           }
           return { success: false, error: 'Verification failed' };
@@ -189,6 +257,7 @@ export const useAuthStore = create<AuthState>()(
             const authUser: AuthUser = {
               id: data.session.user.id,
               email: data.session.user.email,
+              fullName: data.session.user.user_metadata?.full_name,
             };
             set({ hasSession: true, isGuest: false, user: authUser });
             await syncFromCloud(data.session.user.id);

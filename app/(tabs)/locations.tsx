@@ -140,23 +140,25 @@ export default function Locations() {
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.m }}>
-          <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
-            <Typography variant="h1" numberOfLines={1} style={{ fontWeight: '800' }}>
-              {t('locationsHeader')}
-            </Typography>
-            <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-              {t('savedLocations')} ({locations.length})
-            </Typography>
+        <View style={{ marginBottom: theme.spacing.m }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Typography variant="h2" style={{ fontWeight: '800', letterSpacing: -0.5 }}>
+                {t('locationsHeader')}
+              </Typography>
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
+                {t('savedLocations')} ({locations.length})
+              </Typography>
+            </View>
+            {!showAddSearch && (
+              <Button
+                title={t('addNewLocation')}
+                variant="outline"
+                onPress={() => setShowAddSearch(true)}
+                style={{ paddingVertical: 6, paddingHorizontal: 12 }}
+              />
+            )}
           </View>
-          {!showAddSearch && (
-            <Button
-              title={t('addNewLocation')}
-              variant="outline"
-              onPress={() => setShowAddSearch(true)}
-              style={{ paddingVertical: 8, paddingHorizontal: 12, flexShrink: 0 }}
-            />
-          )}
         </View>
 
         {/* Add Location Search Box */}

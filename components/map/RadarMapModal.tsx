@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../ui/Typography';
@@ -216,7 +216,7 @@ export function RadarMapModal({
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Typography variant="h3" numberOfLines={1} style={{ fontWeight: '800' }}>
-              Live Weather Radar & Satellite
+              Live Radar & Satellite
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1}>
               {locationName} ({initialLat.toFixed(2)}N, {initialLon.toFixed(2)}E)
@@ -232,35 +232,47 @@ export function RadarMapModal({
           </TouchableOpacity>
         </View>
 
-        {/* Layer Selectors */}
-        <View style={styles.layerBar}>
-          {(['radar', 'satellite', 'wind'] as const).map((l) => (
-            <TouchableOpacity
-              key={l}
-              onPress={() => handleLayerChange(l)}
-              activeOpacity={0.7}
-              style={[
-                styles.layerChip,
-                {
-                  backgroundColor: activeLayer === l ? theme.colors.primary : theme.colors.surfaceSecondary,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-            >
-              <Icon
-                name={l === 'radar' ? 'radar' : l === 'satellite' ? 'cloud' : 'wind'}
-                size={13}
-                color={activeLayer === l ? '#fff' : theme.colors.text}
-              />
-              <Typography
-                variant="caption"
-                color={activeLayer === l ? '#fff' : theme.colors.text}
-                style={{ marginLeft: 4, fontWeight: '700', textTransform: 'capitalize' }}
+        {/* Layer Selectors (Horizontally Scrollable) */}
+        <View style={{ marginBottom: 4 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingBottom: 8,
+              flexDirection: 'row',
+              gap: 8,
+              alignItems: 'center',
+            }}
+          >
+            {(['radar', 'satellite', 'wind'] as const).map((l) => (
+              <TouchableOpacity
+                key={l}
+                onPress={() => handleLayerChange(l)}
+                activeOpacity={0.7}
+                style={[
+                  styles.layerChip,
+                  {
+                    backgroundColor: activeLayer === l ? theme.colors.primary : theme.colors.surfaceSecondary,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
               >
-                {l === 'radar' ? 'Doppler Radar' : l === 'satellite' ? 'INSAT Clouds' : 'Wind Vectors'}
-              </Typography>
-            </TouchableOpacity>
-          ))}
+                <Icon
+                  name={l === 'radar' ? 'radar' : l === 'satellite' ? 'cloud' : 'wind'}
+                  size={13}
+                  color={activeLayer === l ? '#fff' : theme.colors.text}
+                />
+                <Typography
+                  variant="caption"
+                  color={activeLayer === l ? '#fff' : theme.colors.text}
+                  style={{ marginLeft: 4, fontWeight: '700', textTransform: 'capitalize' }}
+                >
+                  {l === 'radar' ? 'Doppler Radar' : l === 'satellite' ? 'INSAT Clouds' : 'Wind Vectors'}
+                </Typography>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Interactive Map WebView */}
