@@ -158,3 +158,38 @@ test('Location & Survey: End-to-end integration and routing integrity', () => {
   assert.strictEqual(locs[0].isDefault, true);
   assert.ok(locs.some((l: any) => l.isDefault), 'Must detect existing default location');
 });
+
+test('User Persistence: Profile name, location memory & cloud preferences', async () => {
+  const { useAuthStore } = require('../store/useAuthStore');
+  const { useLocationStore } = require('../store/useLocationStore');
+
+  // Test full name update and local state persistence
+  useAuthStore.getState().setSession(true, {
+    id: 'user-test-123',
+    email: 'vicky@example.com',
+    fullName: 'Vicky Sahu',
+  });
+
+  const currentUser = useAuthStore.getState().user;
+  assert.ok(currentUser, 'User must exist');
+  assert.strictEqual(currentUser.fullName, 'Vicky Sahu', 'User full name must be preserved');
+  assert.strictEqual(currentUser.email, 'vicky@example.com');
+
+  await useAuthStore.getState().updateFullName('Vicky Sahu New');
+  assert.strictEqual(useAuthStore.getState().user?.fullName, 'Vicky Sahu New', 'Updated full name must be saved in state');
+
+  // Verify location memory preserves primary location
+  useLocationStore.getState().reset();
+  useLocationStore.getState().addLocation({
+    id: 'test-loc-mumbai',
+    label: 'Bandra, Mumbai',
+    lat: 19.0596,
+    lon: 72.8295,
+    isDefault: true,
+  });
+
+  assert.strictEqual(useLocationStore.getState().locations.length, 1);
+  assert.strictEqual(useLocationStore.getState().hasDefaultLocation(), true);
+  assert.strictEqual(useLocationStore.getState().getSelectedLocation()?.label, 'Bandra, Mumbai');
+});
+

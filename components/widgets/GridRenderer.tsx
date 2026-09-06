@@ -23,6 +23,7 @@ import {
   ComfortIndexWidget,
 } from './WeatherWidgets';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useLocaleStore } from '../../store/useLocaleStore';
 import { Typography } from '../ui/Typography';
 import { Icon } from '../ui/Icon';
 
@@ -47,22 +48,33 @@ const WIDGET_MAP: Record<string, React.FC<any>> = {
   comfort_index: ComfortIndexWidget,
 };
 
-export function GridRenderer({ isCustomizing }: { isCustomizing: boolean }) {
+interface GridRendererProps {
+  isCustomizing: boolean;
+  headerComponent?: React.ReactElement | null;
+}
+
+export function GridRenderer({ isCustomizing, headerComponent }: GridRendererProps) {
   const { layout, removeWidget, setLayout } = useLayoutStore();
   const theme = useTheme();
+  const t = useLocaleStore((state) => state.t);
+
+  // Exclude legacy base summary placeholder so MainWeatherHero is the single primary hero
+  const displayLayout = layout.filter((item) => item.id !== 'widget-base-summary');
 
   const moveUp = (index: number) => {
     if (index === 0) return;
-    const newLayout = [...layout];
+    const newLayout = [...displayLayout];
     [newLayout[index - 1], newLayout[index]] = [newLayout[index], newLayout[index - 1]];
-    setLayout(newLayout);
+    const baseItem = layout.find((l) => l.id === 'widget-base-summary');
+    setLayout(baseItem ? [baseItem, ...newLayout] : newLayout);
   };
 
   const moveDown = (index: number) => {
-    if (index === layout.length - 1) return;
-    const newLayout = [...layout];
+    if (index >= displayLayout.length - 1) return;
+    const newLayout = [...displayLayout];
     [newLayout[index + 1], newLayout[index]] = [newLayout[index], newLayout[index + 1]];
-    setLayout(newLayout);
+    const baseItem = layout.find((l) => l.id === 'widget-base-summary');
+    setLayout(baseItem ? [baseItem, ...newLayout] : newLayout);
   };
 
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<LayoutItem>) => {
@@ -97,13 +109,13 @@ export function GridRenderer({ isCustomizing }: { isCustomizing: boolean }) {
                 borderStyle: 'dashed',
               }}
             >
-              <Icon name="sliders" size={13} color={isActive ? '#fff' : theme.colors.primary} />
+              <Icon name="sliders" size={13} color={isActive ? (theme.colors.onPrimary || '#fff') : theme.colors.primary} />
               <Typography
                 variant="caption"
-                color={isActive ? '#fff' : theme.colors.primary}
+                color={isActive ? (theme.colors.onPrimary || '#fff') : theme.colors.primary}
                 style={{ fontWeight: '700', marginLeft: 6, fontSize: 11 }}
               >
-                {isActive ? 'Dragging Widget...' : 'Hold to Drag & Reorder'}
+                {isActive ? t('draggingWidget') : t('holdToDrag')}
               </Typography>
             </TouchableOpacity>
           )}
@@ -136,23 +148,23 @@ export function GridRenderer({ isCustomizing }: { isCustomizing: boolean }) {
                 }}
               >
                 <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
-                  Move Up
+                  {t('moveUp')}
                 </Typography>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => moveDown(index)}
-                disabled={index === layout.length - 1}
+                disabled={index >= displayLayout.length - 1}
                 style={{
                   paddingVertical: 3,
                   paddingHorizontal: 10,
                   borderRadius: theme.shapes.borderRadius.s,
                   backgroundColor: theme.colors.surfaceSecondary,
-                  opacity: index === layout.length - 1 ? 0.35 : 1,
+                  opacity: index >= displayLayout.length - 1 ? 0.35 : 1,
                 }}
               >
                 <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
-                  Move Down
+                  {t('moveDown')}
                 </Typography>
               </TouchableOpacity>
             </View>
@@ -165,10 +177,14 @@ export function GridRenderer({ isCustomizing }: { isCustomizing: boolean }) {
   if (isCustomizing) {
     return (
       <DraggableFlatList
-        data={layout}
-        onDragEnd={({ data }) => setLayout(data)}
+        data={displayLayout}
+        onDragEnd={({ data }) => {
+          const baseItem = layout.find((l) => l.id === 'widget-base-summary');
+          setLayout(baseItem ? [baseItem, ...data] : data);
+        }}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        ListHeaderComponent={headerComponent}
         containerStyle={{ flex: 1, padding: theme.spacing.m }}
         showsVerticalScrollIndicator={false}
         ListFooterComponent={<View style={{ height: 120 }} />}
@@ -178,7 +194,8 @@ export function GridRenderer({ isCustomizing }: { isCustomizing: boolean }) {
 
   return (
     <ScrollView style={{ flex: 1, padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
-      {layout.map((item) => {
+      {headerComponent}
+      {displayLayout.map((item) => {
         const WidgetComponent = WIDGET_MAP[item.type];
         if (!WidgetComponent) return null;
 

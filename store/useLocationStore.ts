@@ -56,8 +56,8 @@ export const useLocationStore = create<LocationState>()(
         triggerBackgroundSync(userId);
       },
       removeLocation: (id) => {
+        const target = get().locations.find((l) => l.id === id);
         set((state) => {
-          const target = state.locations.find((l) => l.id === id);
           const remaining = state.locations.filter((l) => l.id !== id);
           // If we deleted the default location and have remaining locations, promote the first one to default
           if (target?.isDefault && remaining.length > 0) {
@@ -66,6 +66,22 @@ export const useLocationStore = create<LocationState>()(
           return { locations: remaining };
         });
         const userId = useAuthStore.getState().user?.id || null;
+        if (userId && target) {
+          try {
+            const { supabase, isSupabaseConfigured } = require('../lib/supabase');
+            if (isSupabaseConfigured()) {
+              supabase
+                .from('user_locations')
+                .delete()
+                .eq('user_id', userId)
+                .eq('lat', target.lat)
+                .eq('lon', target.lon)
+                .then();
+            }
+          } catch {
+            // Ignore background delete exceptions
+          }
+        }
         triggerBackgroundSync(userId);
       },
       setDefaultLocation: (id) => {

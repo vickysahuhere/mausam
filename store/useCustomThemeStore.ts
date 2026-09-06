@@ -117,6 +117,47 @@ export const STARTER_CUSTOM_THEMES: MausamTheme[] = [
     shapes: { borderRadius: { s: 4, m: 8, l: 12, pill: 999 } },
     cards: { elevation: 0, borderWidth: 1.5, shadowOpacity: 0 },
   },
+  {
+    id: 'custom-vintage-cream',
+    name: 'Vintage Cream',
+    tagline: 'Warm parchment glass with pebble contours',
+    isCustom: true,
+    artDirection: {
+      cardStyle: 'glass',
+      badgeStyle: 'pill',
+      dividerStyle: 'hairline',
+      shadowOffset: { width: 0, height: 6 },
+      iconStyle: 'bold',
+      wallpaper: {
+        type: 'solid',
+      },
+    },
+    colors: {
+      background: '#FAF5EF',
+      surface: 'rgba(255, 255, 255, 0.75)',
+      surfaceSecondary: 'rgba(245, 235, 224, 0.65)',
+      primary: '#854D0E',
+      accent: '#CA8A04',
+      text: '#292524',
+      textSecondary: '#78716C',
+      border: 'rgba(214, 205, 194, 0.7)',
+      success: '#15803D',
+      warning: '#B45309',
+      error: '#B91C1C',
+      glow: '#854D0E',
+      onPrimary: '#FFFFFF',
+      successBg: 'rgba(21, 128, 61, 0.12)',
+      warningBg: 'rgba(180, 83, 9, 0.12)',
+      errorBg: 'rgba(185, 28, 28, 0.12)',
+    },
+    typography: {
+      fontFamily: { regular: 'System', bold: 'System' },
+      sizes: { xs: 11, s: 13, m: 15, l: 18, xl: 22, xxl: 32 },
+    },
+    spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 36 },
+    shapes: { borderRadius: { s: 10, m: 18, l: 26, pill: 999 } },
+    cards: { elevation: 0, borderWidth: 1.5, shadowOpacity: 0.1 },
+  },
 ];
 
 interface CustomThemeState {

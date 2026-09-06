@@ -17,11 +17,13 @@ interface AuthState {
   user: AuthUser | null;
   personaVector: Record<Persona, number> | null;
   surveyCompleted: boolean;
+  isRestoringSession: boolean;
 
   setSession: (val: boolean, user?: AuthUser | null) => void;
   setGuest: (val: boolean) => void;
   setPersonaVector: (vector: Record<Persona, number>) => void;
   completeSurvey: () => void;
+  updateFullName: (name: string) => Promise<boolean>;
 
   signInWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signUpWithPassword: (
@@ -45,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       personaVector: null,
       surveyCompleted: false,
+      isRestoringSession: false,
 
       setSession: (val, user = null) =>
         set({ hasSession: val, isGuest: !val, user: val ? user : null }),
@@ -56,13 +59,48 @@ export const useAuthStore = create<AuthState>()(
 
       completeSurvey: () => set({ surveyCompleted: true }),
 
+      updateFullName: async (name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return false;
+
+        const currentUser = get().user;
+        if (!currentUser) return false;
+
+        const updatedUser: AuthUser = {
+          ...currentUser,
+          fullName: trimmed,
+        };
+        set({ user: updatedUser });
+
+        try {
+          if (isSupabaseConfigured()) {
+            await Promise.all([
+              supabase.auth.updateUser({
+                data: { full_name: trimmed },
+              }),
+              supabase.from('user_profiles').upsert({
+                user_id: currentUser.id,
+                full_name: trimmed,
+                updated_at: new Date().toISOString(),
+              }),
+            ]);
+          }
+          return true;
+        } catch (err) {
+          console.warn('updateFullName error:', err);
+          return false;
+        }
+      },
+
       signInWithPassword: async (email, password) => {
         try {
           if (!isSupabaseConfigured()) {
             // Offline mock authentication fallback
+            const existingName = get().user?.fullName || '';
             const mockUser: AuthUser = {
               id: `user-${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
               email,
+              fullName: existingName,
             };
             set({ hasSession: true, isGuest: false, user: mockUser });
             await syncFromCloud(mockUser.id);
@@ -77,7 +115,16 @@ export const useAuthStore = create<AuthState>()(
           if (error) return { success: false, error: error.message };
 
           if (data.user) {
-            const authUser: AuthUser = { id: data.user.id, email: data.user.email };
+            const metaName =
+              data.user.user_metadata?.full_name ||
+              data.user.user_metadata?.name ||
+              get().user?.fullName ||
+              '';
+            const authUser: AuthUser = {
+              id: data.user.id,
+              email: data.user.email,
+              fullName: metaName,
+            };
             set({ hasSession: true, isGuest: false, user: authUser });
             await syncFromCloud(data.user.id);
             return { success: true };
@@ -243,6 +290,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       restoreSession: async () => {
+        set({ isRestoringSession: true });
         try {
           if (!isSupabaseConfigured()) {
             const current = get();
@@ -254,16 +302,23 @@ export const useAuthStore = create<AuthState>()(
 
           const { data } = await supabase.auth.getSession();
           if (data.session?.user) {
+            const metaName =
+              data.session.user.user_metadata?.full_name ||
+              data.session.user.user_metadata?.name ||
+              get().user?.fullName ||
+              '';
             const authUser: AuthUser = {
               id: data.session.user.id,
               email: data.session.user.email,
-              fullName: data.session.user.user_metadata?.full_name,
+              fullName: metaName,
             };
             set({ hasSession: true, isGuest: false, user: authUser });
             await syncFromCloud(data.session.user.id);
           }
         } catch (e) {
           console.warn('Session restoration failed:', e);
+        } finally {
+          set({ isRestoringSession: false });
         }
       },
     }),

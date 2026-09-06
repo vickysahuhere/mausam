@@ -34,6 +34,9 @@ function getAlertCacheKey(lat: number, lon: number): string {
  * Checks if Supabase Edge Functions are available for alert proxying.
  */
 function getEdgeAlertUrl(): string | null {
+  if (process.env.EXPO_PUBLIC_USE_EDGE_FUNCTIONS !== 'true') {
+    return null;
+  }
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   if (
     !supabaseUrl ||

@@ -225,9 +225,9 @@ export function ThemeStudioModal({ visible, onClose, initialTheme }: ThemeStudio
         },
       },
       cards: {
-        elevation: cardStyle === 'oled' ? 0 : 5,
-        borderWidth: cardStyle === 'oled' ? 1.5 : 1,
-        shadowOpacity: 0.25,
+        elevation: (cardStyle === 'oled' || cardStyle === 'glass') ? 0 : 5,
+        borderWidth: (cardStyle === 'oled' || cardStyle === 'glass') ? 1.5 : 1,
+        shadowOpacity: cardStyle === 'glass' ? 0.12 : 0.25,
       },
     };
 

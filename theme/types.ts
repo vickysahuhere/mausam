@@ -3,6 +3,7 @@ export interface MausamTheme {
   name: string;
   tagline: string;
   isCustom?: boolean;
+  isDark?: boolean;
   artDirection: {
     cardStyle: 'standard' | 'glass' | 'flat2d' | 'clinical' | 'oled' | 'pebble' | 'ticket' | 'rugged' | 'transit' | 'editorial';
     badgeStyle: 'pill' | 'square' | 'outline' | 'neon';
@@ -27,6 +28,10 @@ export interface MausamTheme {
     warning: string;
     error: string;
     glow?: string;
+    onPrimary?: string;
+    successBg?: string;
+    warningBg?: string;
+    errorBg?: string;
   };
   typography: {
     fontFamily: {

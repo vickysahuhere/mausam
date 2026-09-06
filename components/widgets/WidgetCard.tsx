@@ -34,8 +34,7 @@ export function WidgetCard({
   onRemove,
 }: WrapperProps) {
   const theme = useTheme();
-  const _locale = useLocaleStore((state) => state.locale);
-  void _locale;
+  useLocaleStore((state) => state.locale); // Ensure reactivity on locale change
   const t = useLocaleStore((state) => state.t);
   const displayTitle = t(title);
 
@@ -91,15 +90,21 @@ export function WidgetCard({
             <TouchableOpacity
               onPress={onRemove}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${displayTitle}`}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               style={{
-                padding: 4,
+                width: 28,
+                height: 28,
                 backgroundColor: theme.colors.surfaceSecondary,
-                borderRadius: 9999,
+                borderRadius: 14,
                 borderWidth: 1,
                 borderColor: theme.colors.error,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <Icon name="close" size={12} color={theme.colors.error} strokeWidth={2.5} />
+              <Icon name="close" size={13} color={theme.colors.error} strokeWidth={2.5} />
             </TouchableOpacity>
           )}
         </View>
@@ -110,8 +115,11 @@ export function WidgetCard({
           <ActivityIndicator color={theme.colors.primary} size="small" />
         </View>
       ) : error ? (
-        <View style={{ height: 64, justifyContent: 'center' }}>
-          <Typography color={theme.colors.error}>{error}</Typography>
+        <View style={{ paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
+          <Icon name="alert-triangle" size={18} color={theme.colors.error} />
+          <Typography variant="caption" color={theme.colors.error} style={{ marginLeft: 8, flex: 1, fontWeight: '600' }}>
+            {error}
+          </Typography>
         </View>
       ) : (
         <View style={{ minHeight: 40 }}>{children}</View>

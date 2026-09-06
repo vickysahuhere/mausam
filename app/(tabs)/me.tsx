@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
+import * as Linking from 'expo-linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
@@ -12,7 +13,6 @@ import { useLocationStore } from '../../store/useLocationStore';
 import { useLayoutStore } from '../../store/useLayoutStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { THEME_REGISTRY } from '../../theme/registry';
-import { Persona } from '../../lib/surveyQuestions';
 import { syncFromCloud, triggerBackgroundSync } from '../../lib/syncService';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { SUPPORTED_LOCALES, SupportedLocale } from '../../lib/i18n';
@@ -34,12 +34,10 @@ export default function MeScreen() {
     verifyOtp,
     checkVerificationStatus,
     resendVerificationEmail,
-    setPersonaVector,
-    completeSurvey,
-    setGuest,
+    updateFullName,
   } = useAuthStore();
-  const { locations, reset: resetLocations } = useLocationStore();
-  const { activeThemeId, reset: resetLayout, reinitializeLayout, layout } = useLayoutStore();
+  const { locations } = useLocationStore();
+  const { activeThemeId, layout } = useLayoutStore();
   const { locale, setLocale, t } = useLocaleStore();
   const { animationsEnabled, setAnimationsEnabled } = useAnimationStore();
 
@@ -58,21 +56,50 @@ export default function MeScreen() {
   const [meAwaitingVerification, setMeAwaitingVerification] = useState(false);
   const [meOtpCode, setMeOtpCode] = useState('');
   const [syncing, setSyncing] = useState(false);
-  const [devTapCount, setDevTapCount] = useState(0);
-  const [devModeUnlocked, setDevModeUnlocked] = useState(false);
 
-  const handleVersionTap = () => {
-    const next = devTapCount + 1;
-    setDevTapCount(next);
-    if (next >= 7) {
-      setDevModeUnlocked((prev) => !prev);
-      setDevTapCount(0);
-      Alert.alert(
-        !devModeUnlocked ? 'Developer Mode Unlocked' : 'Developer Mode Disabled',
-        !devModeUnlocked
-          ? 'Developer testing controls, persona force-seeders, and state purge tools are now enabled.'
-          : 'Developer controls have been hidden.'
-      );
+  // Name Editing State
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newNameInput, setNewNameInput] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+
+  const handleStartEditName = () => {
+    setNewNameInput(user?.fullName || '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = newNameInput.trim();
+    if (!trimmed) {
+      Alert.alert('Name Required', 'Please enter your name.');
+      return;
+    }
+    setNameSaving(true);
+    try {
+      const ok = await updateFullName(trimmed);
+      if (ok) {
+        setIsEditingName(false);
+        Alert.alert('Name Updated', `Your display name has been updated to "${trimmed}" and saved in Supabase.`);
+      } else {
+        Alert.alert('Notice', 'Could not update name in cloud. Updated locally.');
+        setIsEditingName(false);
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to update name.');
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
+  const handleOpenUrl = async (url: string, label: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Unable to Open Link', `Could not open ${label}. Please visit: ${url}`);
+      }
+    } catch {
+      Alert.alert('Unable to Open Link', `Could not open ${label}. Please visit: ${url}`);
     }
   };
 
@@ -227,34 +254,6 @@ export default function MeScreen() {
 
   const defaultLoc = locations.find((l) => l.isDefault) || locations[0];
 
-  // Developer Reset Flow
-  const handleDeveloperReset = () => {
-    signOut();
-    resetLocations();
-    resetLayout();
-    router.replace('/onboarding');
-  };
-
-  // Developer Quick Seed Persona for instant testing
-  const handleSeedPersona = (persona: Persona) => {
-    const vector: Record<Persona, number> = {
-      health: 0,
-      fitness: 0,
-      beach: 0,
-      travel: 0,
-      parent: 0,
-      agriculture: 0,
-      commuter: 0,
-      event: 0,
-    };
-    vector[persona] = 1.0;
-    setPersonaVector(vector);
-    completeSurvey();
-    setGuest(true);
-    reinitializeLayout(vector);
-    Alert.alert('Persona Seeded', 'Generated homepage for ' + persona.toUpperCase() + ' persona.');
-  };
-
   // Find dominant persona
   let dominantPersona = 'Custom';
   if (personaVector) {
@@ -293,11 +292,31 @@ export default function MeScreen() {
               <Icon name="me" size={24} color={theme.colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Typography variant="h3" style={{ fontWeight: '700' }}>
-                {hasSession && user ? user.fullName || user.email || 'Registered User' : 'Guest Explorer'}
-              </Typography>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Typography variant="h3" style={{ fontWeight: '700' }}>
+                  {hasSession && user
+                    ? user.fullName || 'Mausam Explorer'
+                    : 'Guest Explorer'}
+                </Typography>
+                {hasSession && user && (
+                  <TouchableOpacity
+                    onPress={handleStartEditName}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit display name"
+                    style={{
+                      padding: 4,
+                      borderRadius: 6,
+                      backgroundColor: theme.colors.surfaceSecondary,
+                    }}
+                  >
+                    <Icon name="sliders" size={12} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
               <Typography variant="caption" color={theme.colors.textSecondary}>
-                {hasSession && user ? 'Cloud Synced \u2022 PostgreSQL / RLS' : 'Local device session \u2022 No cloud backup'}
+                {hasSession && user
+                  ? `${user.email || 'Registered User'} • Cloud Synced`
+                  : 'Local device session • No cloud backup'}
               </Typography>
             </View>
 
@@ -307,19 +326,73 @@ export default function MeScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  backgroundColor: '#10B98120',
+                  backgroundColor: theme.colors.successBg || 'rgba(16, 185, 129, 0.15)',
                   paddingHorizontal: 8,
                   paddingVertical: 4,
                   borderRadius: 12,
                 }}
               >
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 4 }} />
-                <Typography variant="caption" color="#10B981" style={{ fontWeight: '700', fontSize: 11 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.success || '#10B981', marginRight: 4 }} />
+                <Typography variant="caption" color={theme.colors.success || '#10B981'} style={{ fontWeight: '700', fontSize: 11 }}>
                   Synced
                 </Typography>
               </View>
             )}
           </View>
+
+          {/* Inline Name Editor */}
+          {hasSession && user && isEditingName && (
+            <View
+              style={{
+                marginTop: 12,
+                padding: 10,
+                borderRadius: 8,
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              }}
+            >
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '700', marginBottom: 6 }}>
+                EDIT DISPLAY NAME
+              </Typography>
+              <TextInput
+                value={newNameInput}
+                onChangeText={setNewNameInput}
+                placeholder="Enter your full name"
+                placeholderTextColor={theme.colors.textSecondary}
+                autoFocus
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: theme.colors.text,
+                  marginBottom: 8,
+                }}
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setIsEditingName(false)}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6 }}
+                >
+                  <Typography variant="caption" color={theme.colors.textSecondary}>
+                    Cancel
+                  </Typography>
+                </TouchableOpacity>
+                <Button
+                  title={nameSaving ? 'Saving...' : 'Save Name'}
+                  variant="primary"
+                  disabled={nameSaving}
+                  onPress={handleSaveName}
+                  style={{ paddingHorizontal: 14, paddingVertical: 6 }}
+                />
+              </View>
+            </View>
+          )}
 
           {/* Database Connection Status Row */}
           <View
@@ -327,7 +400,9 @@ export default function MeScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: isSupabaseConfigured() ? '#10B98115' : '#F59E0B15',
+              backgroundColor: isSupabaseConfigured()
+                ? (theme.colors.successBg || 'rgba(16, 185, 129, 0.12)')
+                : (theme.colors.warningBg || 'rgba(245, 158, 11, 0.12)'),
               paddingHorizontal: 10,
               paddingVertical: 6,
               borderRadius: 8,
@@ -340,12 +415,12 @@ export default function MeScreen() {
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: isSupabaseConfigured() ? '#10B981' : '#F59E0B',
+                  backgroundColor: isSupabaseConfigured() ? (theme.colors.success || '#10B981') : (theme.colors.warning || '#F59E0B'),
                 }}
               />
               <Typography
                 variant="caption"
-                color={isSupabaseConfigured() ? '#10B981' : '#F59E0B'}
+                color={isSupabaseConfigured() ? (theme.colors.success || '#10B981') : (theme.colors.warning || '#F59E0B')}
                 style={{ fontWeight: '700', fontSize: 11 }}
                 numberOfLines={1}
               >
@@ -702,7 +777,7 @@ export default function MeScreen() {
                   backgroundColor: temperatureUnit === 'C' ? theme.colors.primary : theme.colors.surfaceSecondary,
                 }}
               >
-                <Typography variant="caption" color={temperatureUnit === 'C' ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+                <Typography variant="caption" color={temperatureUnit === 'C' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
                   {'\u00B0'}C
                 </Typography>
               </TouchableOpacity>
@@ -715,7 +790,7 @@ export default function MeScreen() {
                   backgroundColor: temperatureUnit === 'F' ? theme.colors.primary : theme.colors.surfaceSecondary,
                 }}
               >
-                <Typography variant="caption" color={temperatureUnit === 'F' ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+                <Typography variant="caption" color={temperatureUnit === 'F' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
                   {'\u00B0'}F
                 </Typography>
               </TouchableOpacity>
@@ -736,7 +811,7 @@ export default function MeScreen() {
                   backgroundColor: windUnit === 'km/h' ? theme.colors.primary : theme.colors.surfaceSecondary,
                 }}
               >
-                <Typography variant="caption" color={windUnit === 'km/h' ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+                <Typography variant="caption" color={windUnit === 'km/h' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
                   km/h
                 </Typography>
               </TouchableOpacity>
@@ -749,7 +824,7 @@ export default function MeScreen() {
                   backgroundColor: windUnit === 'm/s' ? theme.colors.primary : theme.colors.surfaceSecondary,
                 }}
               >
-                <Typography variant="caption" color={windUnit === 'm/s' ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+                <Typography variant="caption" color={windUnit === 'm/s' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
                   m/s
                 </Typography>
               </TouchableOpacity>
@@ -783,7 +858,7 @@ export default function MeScreen() {
                 >
                   <Typography
                     variant="caption"
-                    color={locale === loc.code ? '#FFFFFF' : theme.colors.text}
+                    color={locale === loc.code ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text}
                     style={{ fontWeight: locale === loc.code ? '700' : '500' }}
                   >
                     {loc.nativeName}
@@ -838,71 +913,204 @@ export default function MeScreen() {
           </View>
         </Card>
 
-        {/* SECTION 5: ABOUT */}
-        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 }}>
-          About
+        {/* SECTION 5: ABOUT & MAITHIL STUDIOS */}
+        <Typography
+          variant="caption"
+          color={theme.colors.textSecondary}
+          style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8 }}
+        >
+          {t('aboutMausam')}
         </Typography>
         <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
-          <Typography variant="bodyMedium" style={{ fontWeight: '700' }}>Mausam</Typography>
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-            Personalized Weather Platform {'\u2022'} Ministry of Earth Sciences / IMD
+          {/* Studio & Brand Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                overflow: 'hidden',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.12,
+                shadowRadius: 6,
+              }}
+            >
+              <Image
+                source={require('../../assets/images/logo.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="h2" style={{ fontWeight: '800', lineHeight: 28 }}>
+                Mausam
+              </Typography>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+                <Typography variant="caption" color={theme.colors.textSecondary}>
+                  {t('productBy')}{' '}
+                </Typography>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => handleOpenUrl('https://maithilstudios.vercel.app/', 'Maithil Studios')}
+                  accessibilityRole="link"
+                  accessibilityLabel="Maithil Studios, opens external website"
+                  accessibilityHint="Opens official website in your web browser"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                >
+                  <Typography
+                    variant="caption"
+                    color={theme.colors.primary}
+                    style={{ fontWeight: '700', textDecorationLine: 'underline' }}
+                  >
+                    Maithil Studios
+                  </Typography>
+                  <Icon name="external-link" size={11} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Mission statement */}
+          <Typography
+            variant="caption"
+            color={theme.colors.textSecondary}
+            style={{ marginTop: 12, lineHeight: 18 }}
+          >
+            Personalized, hyper-local weather intelligence designed for India. Powered by meteorological models and open satellite data.
           </Typography>
-          <TouchableOpacity onPress={handleVersionTap} activeOpacity={0.8} style={{ marginTop: 4 }}>
-            <Typography variant="caption" color={theme.colors.textSecondary}>
-              Version 1.0.0 {'\u2022'} Open Source (MIT){devModeUnlocked ? ' \u2022 [Dev Mode ON]' : ''}
-            </Typography>
-          </TouchableOpacity>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 12 }} />
+
+          {/* Version & Studio Link Pill Row */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <View>
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
+                Version 1.0.0 &bull; Open Source (MIT)
+              </Typography>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => handleOpenUrl('https://maithilstudios.vercel.app/', 'Maithil Studios')}
+              accessibilityRole="link"
+              accessibilityLabel="Visit Maithil Studios, opens external website"
+              accessibilityHint="Opens the Maithil Studios official website"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: theme.shapes.borderRadius.s,
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              }}
+            >
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
+                Maithil Studios &rarr;
+              </Typography>
+            </TouchableOpacity>
+          </View>
         </Card>
 
-        {/* SECTION 6: DEVELOPER OPTIONS (HIDDEN FROM NORMIES) */}
-        {(devModeUnlocked || __DEV__) && (
-          <View style={{ marginTop: theme.spacing.s, marginBottom: theme.spacing.xl }}>
-            <Typography variant="caption" color={theme.colors.error} style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 }}>
-              Developer Options [DEV ONLY]
-            </Typography>
-            <Card style={{ padding: theme.spacing.m, borderColor: theme.colors.error, borderWidth: 1.5 }}>
-              <Typography variant="h3" color={theme.colors.error} style={{ fontWeight: '700', marginBottom: 4 }}>
-                Development & Testing Controls
+        {/* SECTION 6: BE A CONTRIBUTOR */}
+        <Typography
+          variant="caption"
+          color={theme.colors.textSecondary}
+          style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8 }}
+        >
+          {t('beAContributor')}
+        </Typography>
+        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+          {/* Invitation Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: theme.colors.surfaceSecondary,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              }}
+            >
+              <Icon name="github" size={22} color={theme.colors.text} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '800' }}>
+                {t('contributorSubtitle')}
               </Typography>
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.m }}>
-                Quick controls to reset persisted state or test personas during development.
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
+                {t('contributorDesc')} Everyone is welcome to participate in the project.
               </Typography>
-
-              {/* Reset Action */}
-              <Button
-                title="Reset Onboarding & State"
-                variant="outline"
-                onPress={handleDeveloperReset}
-                style={{ borderColor: theme.colors.error, marginBottom: theme.spacing.m }}
-              />
-
-              {/* Seed Persona Shortcuts */}
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 8 }}>
-                Quick Seed Persona (Instant Layout):
-              </Typography>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {(['health', 'fitness', 'beach', 'travel', 'agriculture', 'parent'] as Persona[]).map((p) => (
-                  <TouchableOpacity
-                    key={p}
-                    onPress={() => handleSeedPersona(p)}
-                    style={{
-                      paddingVertical: 5,
-                      paddingHorizontal: 10,
-                      borderRadius: theme.shapes.borderRadius.s,
-                      backgroundColor: theme.colors.surfaceSecondary,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                    }}
-                  >
-                    <Typography variant="caption" style={{ textTransform: 'capitalize', fontWeight: '600' }}>
-                      {p}
-                    </Typography>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Card>
+            </View>
           </View>
-        )}
+
+          {/* Contribution Areas Chips */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 8 }}>
+            {[
+              'Code & Features',
+              'Bug Reports',
+              'Feature Ideas',
+              'Documentation',
+              'Translations (Bhasha)',
+            ].map((item, idx) => (
+              <View
+                key={idx}
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 6,
+                  backgroundColor: theme.colors.surfaceSecondary,
+                  borderWidth: 0.5,
+                  borderColor: theme.colors.border,
+                }}
+              >
+                <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 10, fontWeight: '600' }}>
+                  {item}
+                </Typography>
+              </View>
+            ))}
+          </View>
+
+          {/* Contribute CTA Button */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => handleOpenUrl('https://github.com/vickysahuhere/mausam.git', 'Mausam GitHub repository')}
+            accessibilityRole="link"
+            accessibilityLabel="Contribute on GitHub, opens external website"
+            accessibilityHint="Opens the Mausam open source GitHub repository in your web browser"
+            style={{
+              minHeight: 46,
+              marginTop: 6,
+              paddingHorizontal: theme.spacing.m,
+              paddingVertical: 10,
+              borderRadius: theme.shapes.borderRadius.m,
+              backgroundColor: theme.colors.primary,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Icon name="github" size={18} color={theme.colors.onPrimary || '#FFFFFF'} />
+            <Typography
+              variant="bodyMedium"
+              style={{
+                fontWeight: '700',
+                color: theme.colors.onPrimary || '#FFFFFF',
+              }}
+            >
+              {t('contributeOnGithub')}
+            </Typography>
+            <Icon name="external-link" size={14} color={theme.colors.onPrimary || '#FFFFFF'} />
+          </TouchableOpacity>
+        </Card>
 
         <View style={{ height: 80 }} />
       </ScrollView>

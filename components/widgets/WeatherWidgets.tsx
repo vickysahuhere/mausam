@@ -71,6 +71,18 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
   );
 }
 
+function getAqiColor(aqi: number, themeColors: any): string {
+  if (aqi <= 50) return themeColors.success || '#10B981';
+  if (aqi <= 100) return themeColors.warning || '#F59E0B';
+  return themeColors.error || '#EF4444';
+}
+
+function getUvColor(uv: number, themeColors: any): string {
+  if (uv <= 2) return themeColors.success || '#10B981';
+  if (uv <= 7) return themeColors.warning || '#F59E0B';
+  return themeColors.error || '#EF4444';
+}
+
 export function AqiWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('aqi_card', 'default');
   const theme = useTheme();
@@ -89,7 +101,7 @@ export function AqiWidget({ id, isCustomizing, onRemove }: WidgetProps) {
         <View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', flexShrink: 1 }}>
-              <Typography variant="h1" color={data.aqi > 100 ? theme.colors.warning : theme.colors.success}>
+              <Typography variant="h1" color={getAqiColor(data.aqi, theme.colors)}>
                 {data.aqi}
               </Typography>
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginLeft: 8 }}>
@@ -126,7 +138,7 @@ export function UvIndexWidget({ id, isCustomizing, onRemove }: WidgetProps) {
       {data && (
         <View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h2" color={theme.colors.warning}>
+            <Typography variant="h2" color={getUvColor(data.uvIndex, theme.colors)}>
               {data.uvIndex} <Typography variant="caption" color={theme.colors.textSecondary}>/ 12</Typography>
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>

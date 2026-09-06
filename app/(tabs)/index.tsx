@@ -6,6 +6,7 @@ import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
 import { GridRenderer } from '../../components/widgets/GridRenderer';
+import { MainWeatherHero } from '../../components/home/MainWeatherHero';
 import { WidgetLibrarySheet } from '../../components/home/WidgetLibrarySheet';
 import { ThemeSelector } from '../../components/home/ThemeSelector';
 import { RadarMapModal } from '../../components/map/RadarMapModal';
@@ -200,125 +201,169 @@ export default function Home() {
         )}
 
         {/* Active Severe Alert Banner */}
-        {!isCustomizing && severeAlert && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/alerts')}
-            style={{
-              marginHorizontal: theme.spacing.m,
-              marginTop: 4,
-              marginBottom: 8,
-              padding: 10,
-              borderRadius: theme.shapes.borderRadius.m,
-              backgroundColor: severeAlert.severity === 'red' ? '#FEE2E2' : '#FEF3C7',
-              borderColor: severeAlert.severity === 'red' ? '#EF4444' : '#F59E0B',
-              borderWidth: 1.5,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
-              <Icon name="alert-triangle" size={18} color={severeAlert.severity === 'red' ? '#DC2626' : '#D97706'} />
-              <View style={{ marginLeft: 8, flex: 1 }}>
-                <Typography variant="caption" numberOfLines={1} style={{ fontWeight: '800', color: severeAlert.severity === 'red' ? '#991B1B' : '#92400E' }}>
-                  {severeAlert.title}
-                </Typography>
-                <Typography variant="caption" numberOfLines={1} style={{ color: severeAlert.severity === 'red' ? '#B91C1C' : '#B45309', fontSize: 11, marginTop: 1 }}>
-                  {severeAlert.validUntil} &bull; {t('tapToViewAdvisory')}
-                </Typography>
-              </View>
-            </View>
-            <Icon name="chevron-right" size={14} color={severeAlert.severity === 'red' ? '#DC2626' : '#D97706'} />
-          </TouchableOpacity>
-        )}
+        {!isCustomizing && severeAlert && (() => {
+          const isRed = severeAlert.severity === 'red';
+          const bannerBg = isRed ? (theme.colors.errorBg || '#FEE2E2') : (theme.colors.warningBg || '#FEF3C7');
+          const bannerBorder = isRed ? theme.colors.error : theme.colors.warning;
+          const bannerText = isRed ? theme.colors.error : theme.colors.warning;
 
-        {/* Interactive Live Radar & Satellite Map Card */}
-        {!isCustomizing && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => setRadarVisible(true)}
-            style={{
-              marginHorizontal: theme.spacing.m,
-              marginTop: 2,
-              marginBottom: 8,
-              padding: 12,
-              borderRadius: theme.shapes.borderRadius.m,
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderWidth: 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.05,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, paddingRight: 8 }}>
-              <View
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 19,
-                  backgroundColor: theme.colors.surfaceSecondary,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginRight: 10,
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name="radar" size={20} color={theme.colors.primary} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '700' }}>
-                  {t('radarCardTitle')}
-                </Typography>
-                <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginTop: 2 }}>
-                  {t('radarCardSubtitle')}
-                </Typography>
-              </View>
-            </View>
-
-            <View
+          return (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => router.push('/(tabs)/alerts')}
               style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 12,
-                backgroundColor: theme.colors.primary,
-                flexShrink: 0,
+                marginHorizontal: theme.spacing.m,
+                marginTop: 4,
+                marginBottom: 8,
+                padding: 10,
+                borderRadius: theme.shapes.borderRadius.m,
+                backgroundColor: bannerBg,
+                borderColor: bannerBorder,
+                borderWidth: 1.5,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
-              <Typography variant="caption" numberOfLines={1} color="#fff" style={{ fontWeight: '700', fontSize: 11 }}>
-                {t('viewRadar')}
-              </Typography>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
+                <Icon name="alert-triangle" size={18} color={bannerBorder} />
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <Typography variant="caption" numberOfLines={1} style={{ fontWeight: '800', color: bannerText }}>
+                    {severeAlert.title}
+                  </Typography>
+                  <Typography variant="caption" numberOfLines={1} style={{ color: bannerText, fontSize: 11, marginTop: 1, opacity: 0.9 }}>
+                    {severeAlert.validUntil} &bull; {t('tapToViewAdvisory')}
+                  </Typography>
+                </View>
+              </View>
+              <Icon name="chevron-right" size={14} color={bannerBorder} />
+            </TouchableOpacity>
+          );
+        })()}
+
+        {/* Dynamic Widget Grid with unified scrolling */}
+        <GridRenderer
+          isCustomizing={isCustomizing}
+          headerComponent={
+            <View style={{ marginBottom: 4 }}>
+              {/* The ONE Main Weather Hero */}
+              <MainWeatherHero
+                locationName={defaultLoc?.label || t('selectPrimaryLocation')}
+                onPressLocation={() => router.push('/locations')}
+              />
+
+              {/* Interactive Live Radar & Satellite Map Card */}
+              {!isCustomizing && (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setRadarVisible(true)}
+                  style={{
+                    marginBottom: theme.spacing.m,
+                    padding: 12,
+                    borderRadius: theme.shapes.borderRadius.m,
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, paddingRight: 8 }}>
+                    <View
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: theme.colors.surfaceSecondary,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginRight: 10,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon name="radar" size={20} color={theme.colors.primary} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '700' }}>
+                        {t('radarCardTitle')}
+                      </Typography>
+                      <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginTop: 2 }}>
+                        {t('radarCardSubtitle')}
+                      </Typography>
+                    </View>
+                  </View>
+
+                  <View
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 12,
+                      backgroundColor: theme.colors.primary,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Typography variant="caption" numberOfLines={1} color={theme.colors.onPrimary || '#fff'} style={{ fontWeight: '700', fontSize: 11 }}>
+                      {t('viewRadar')}
+                    </Typography>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Theme Picker and Add Widget drawer in Customization Mode */}
+              {isCustomizing && (
+                <View
+                  style={{
+                    marginBottom: theme.spacing.m,
+                    padding: theme.spacing.m,
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.shapes.borderRadius.m,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                >
+                  <ThemeSelector />
+                  <Button
+                    title={t('addWidgetFromLibrary')}
+                    variant="outline"
+                    onPress={() => setLibraryVisible(true)}
+                  />
+                </View>
+              )}
+
+              {/* Section Header for Widgets */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8,
+                  paddingHorizontal: 2,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  color={theme.colors.textSecondary}
+                  style={{ fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}
+                >
+                  {isCustomizing ? t('customizableWidgets') : t('widgetsAndForecasts')}
+                </Typography>
+                {isCustomizing && (
+                  <TouchableOpacity onPress={() => setLibraryVisible(true)}>
+                    <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+                      {t('addMore')}
+                    </Typography>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Theme Picker and Add Widget drawer in Customization Mode */}
-        {isCustomizing && (
-          <View
-            style={{
-              padding: theme.spacing.m,
-              backgroundColor: theme.colors.surface,
-              borderBottomWidth: 1,
-              borderBottomColor: theme.colors.border,
-            }}
-          >
-            <ThemeSelector />
-            <Button
-              title="+ Add Widget from Library"
-              variant="outline"
-              onPress={() => setLibraryVisible(true)}
-            />
-          </View>
-        )}
-
-        {/* Dynamic Widget Grid */}
-        <GridRenderer isCustomizing={isCustomizing} />
+          }
+        />
 
         {/* Full Widget Library Modal */}
         <WidgetLibrarySheet visible={libraryVisible} onClose={() => setLibraryVisible(false)} />
@@ -329,7 +374,7 @@ export default function Home() {
           onClose={() => setRadarVisible(false)}
           initialLat={defaultLoc?.lat ?? 28.6139}
           initialLon={defaultLoc?.lon ?? 77.2090}
-          locationName={defaultLoc?.label ?? 'India'}
+          locationName={defaultLoc?.label ?? t('appName')}
         />
       </WeatherAtmosphere>
     </SafeAreaView>

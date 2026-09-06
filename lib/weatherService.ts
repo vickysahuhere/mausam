@@ -90,6 +90,10 @@ export interface OpenMeteoMarineResponse {
  * Falls back to direct Open-Meteo calls when Edge Functions are unavailable.
  */
 function getEdgeFunctionBaseUrl(): string | null {
+  // Only route through Edge Functions if explicitly enabled via environment variable
+  if (process.env.EXPO_PUBLIC_USE_EDGE_FUNCTIONS !== 'true') {
+    return null;
+  }
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   if (
     !supabaseUrl ||
@@ -950,68 +954,76 @@ export async function getWeatherData(
     try {
       const edgeBase = getEdgeFunctionBaseUrl();
 
-      let forecastJson: OpenMeteoForecastResponse;
+      let forecastJson!: OpenMeteoForecastResponse;
       let aqiJson: OpenMeteoAirQualityResponse | null = null;
       let marineJson: OpenMeteoMarineResponse | null = null;
 
+      let edgeSuccess = false;
+
       if (edgeBase) {
-        // ── Route through Supabase Edge Functions ──
-        const [forecastRes, aqiRes, marineRes] = await Promise.all([
-          fetch(`${edgeBase}/weather?lat=${lat}&lon=${lon}`),
-          fetch(`${edgeBase}/aqi?lat=${lat}&lon=${lon}`).catch(() => null),
-          fetch(`${edgeBase}/sea?lat=${lat}&lon=${lon}`).catch(() => null),
-        ]);
+        try {
+          // ── Route through Supabase Edge Functions ──
+          const [forecastRes, aqiRes, marineRes] = await Promise.all([
+            fetch(`${edgeBase}/weather?lat=${lat}&lon=${lon}`),
+            fetch(`${edgeBase}/aqi?lat=${lat}&lon=${lon}`).catch(() => null),
+            fetch(`${edgeBase}/sea?lat=${lat}&lon=${lon}`).catch(() => null),
+          ]);
 
-        if (!forecastRes.ok) {
-          throw new Error(`Edge Function /weather returned ${forecastRes.status}`);
-        }
-
-        // Edge Functions return the same shape as Open-Meteo (TRD §6)
-        const weatherData = await forecastRes.json();
-        forecastJson = {
-          latitude: weatherData.metadata?.latitude ?? lat,
-          longitude: weatherData.metadata?.longitude ?? lon,
-          timezone: weatherData.metadata?.timezone ?? 'auto',
-          current: weatherData.current,
-          hourly: weatherData.hourly,
-          daily: weatherData.daily,
-        };
-
-        if (aqiRes && aqiRes.ok) {
-          const aqiData = await aqiRes.json();
-          aqiJson = {
-            latitude: aqiData.metadata?.latitude ?? lat,
-            longitude: aqiData.metadata?.longitude ?? lon,
-            current: {
-              time: new Date().toISOString(),
-              pm10: aqiData.pm10 ?? 0,
-              pm2_5: aqiData.pm25 ?? 0,
-              european_aqi: aqiData.aqi ?? 0,
-              us_aqi: aqiData.aqi ?? 0,
-            },
-          };
-        }
-
-        if (marineRes && marineRes.ok) {
-          const seaData = await marineRes.json();
-          if (seaData.status !== 'unavailable') {
-            // Parse Edge Function marine response back to raw marine shape
-            marineJson = {
-              latitude: seaData.metadata?.latitude ?? lat,
-              longitude: seaData.metadata?.longitude ?? lon,
-              current: {
-                time: new Date().toISOString(),
-                wave_height: seaData.waveHeight ? parseFloat(seaData.waveHeight) : null,
-                wave_direction: null,
-                wave_period: seaData.wavePeriod ? parseFloat(seaData.wavePeriod) : null,
-                swell_wave_height: seaData.swellHeight ? parseFloat(seaData.swellHeight) : null,
-                swell_wave_period: seaData.swellPeriod ? parseFloat(seaData.swellPeriod) : null,
-              },
+          if (forecastRes && forecastRes.ok) {
+            // Edge Functions return the same shape as Open-Meteo (TRD §6)
+            const weatherData = await forecastRes.json();
+            forecastJson = {
+              latitude: weatherData.metadata?.latitude ?? lat,
+              longitude: weatherData.metadata?.longitude ?? lon,
+              timezone: weatherData.metadata?.timezone ?? 'auto',
+              current: weatherData.current,
+              hourly: weatherData.hourly,
+              daily: weatherData.daily,
             };
+
+            if (aqiRes && aqiRes.ok) {
+              const aqiData = await aqiRes.json();
+              aqiJson = {
+                latitude: aqiData.metadata?.latitude ?? lat,
+                longitude: aqiData.metadata?.longitude ?? lon,
+                current: {
+                  time: new Date().toISOString(),
+                  pm10: aqiData.pm10 ?? 0,
+                  pm2_5: aqiData.pm25 ?? 0,
+                  european_aqi: aqiData.aqi ?? 0,
+                  us_aqi: aqiData.aqi ?? 0,
+                },
+              };
+            }
+
+            if (marineRes && marineRes.ok) {
+              const seaData = await marineRes.json();
+              if (seaData.status !== 'unavailable') {
+                // Parse Edge Function marine response back to raw marine shape
+                marineJson = {
+                  latitude: seaData.metadata?.latitude ?? lat,
+                  longitude: seaData.metadata?.longitude ?? lon,
+                  current: {
+                    time: new Date().toISOString(),
+                    wave_height: seaData.waveHeight ? parseFloat(seaData.waveHeight) : null,
+                    wave_direction: null,
+                    wave_period: seaData.wavePeriod ? parseFloat(seaData.wavePeriod) : null,
+                    swell_wave_height: seaData.swellHeight ? parseFloat(seaData.swellHeight) : null,
+                    swell_wave_period: seaData.swellPeriod ? parseFloat(seaData.swellPeriod) : null,
+                  },
+                };
+              }
+            }
+
+            edgeSuccess = true;
           }
+        } catch {
+          // Edge function unavailable or errored; transparently fall through to Open-Meteo
         }
-      } else {
-        // ── Direct Open-Meteo calls (fallback / local dev) ──
+      }
+
+      if (!edgeSuccess) {
+        // ── Direct Open-Meteo calls (primary / resilient fallback) ──
         const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,visibility&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum&timezone=auto`;
         const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,european_aqi,us_aqi&timezone=auto`;
         const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period&hourly=wave_height,wave_direction,wave_period&forecast_days=2`;

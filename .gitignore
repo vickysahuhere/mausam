@@ -59,6 +59,8 @@ Thumbs.db
 # Build artifacts
 coverage/
 build/
+*.apk
+*.aab
 
 # Emulator & test dumps / inspection artifacts
 /*.xml

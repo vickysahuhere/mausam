@@ -85,9 +85,8 @@ export default function Alerts() {
       case 'red':
         return theme.colors.error;
       case 'orange':
-        return theme.colors.warning;
       case 'yellow':
-        return '#D97706';
+        return theme.colors.warning;
       case 'advisory':
       default:
         return theme.colors.primary;
@@ -110,49 +109,34 @@ export default function Alerts() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: theme.spacing.m }}>
-          <View style={{ flex: 1, marginRight: 10 }}>
-            <Typography variant="h2" style={{ fontWeight: '800', letterSpacing: -0.5 }}>
-              {t('alertsHeader')}
-            </Typography>
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-              {t('imdSource')}
-            </Typography>
-          </View>
-          <TouchableOpacity
-            onPress={onRefresh}
-            style={{
-              padding: 8,
-              borderRadius: theme.shapes.borderRadius.s,
-              backgroundColor: theme.colors.surfaceSecondary,
-              flexShrink: 0,
-            }}
-          >
-            <Icon name="refresh" size={16} color={theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <Typography variant="h1" style={{ fontWeight: '800', marginBottom: theme.spacing.xs }}>
+          {t('alertsHeader')}
+        </Typography>
+        <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginBottom: theme.spacing.m }}>
+          {t('imdSource')}
+        </Typography>
 
-        {/* Multi-Location Switcher Chips if user has multiple locations */}
+        {/* Location Picker Filter */}
         {locations.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: theme.spacing.m }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {locations.map((loc) => {
-                const isSelected = loc.id === selectedLoc?.id;
+                const isSelected = selectedLoc?.id === loc.id;
                 return (
                   <TouchableOpacity
                     key={loc.id}
                     onPress={() => setActiveLocId(loc.id)}
                     style={{
-                      paddingVertical: 6,
                       paddingHorizontal: 12,
-                      borderRadius: theme.shapes.borderRadius.pill,
+                      paddingVertical: 6,
+                      borderRadius: 16,
                       backgroundColor: isSelected ? theme.colors.primary : theme.colors.surfaceSecondary,
                     }}
                   >
                     <Typography
                       variant="caption"
                       numberOfLines={1}
-                      color={isSelected ? '#FFFFFF' : theme.colors.text}
+                      color={isSelected ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text}
                       style={{ fontWeight: isSelected ? '700' : '500' }}
                     >
                       {loc.label.split(',')[0]}
@@ -193,7 +177,7 @@ export default function Alerts() {
                   variant="caption"
                   numberOfLines={1}
                   style={{
-                    color: isSelected ? '#FFFFFF' : theme.colors.text,
+                    color: isSelected ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text,
                     fontWeight: isSelected ? '700' : '500',
                     fontSize: 10,
                   }}
@@ -209,7 +193,7 @@ export default function Alerts() {
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.m }}>
           <Icon name="map-pin" size={14} color={theme.colors.primary} />
           <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ fontWeight: '700', marginLeft: 4, flexShrink: 1 }}>
-            {selectedLoc?.label || 'Default Location'}
+            {selectedLoc?.label || t('defaultLocation')}
           </Typography>
         </View>
 
@@ -228,16 +212,16 @@ export default function Alerts() {
           <Card style={{ padding: theme.spacing.l, borderColor: theme.colors.error, borderWidth: 1, alignItems: 'center' }}>
             <Icon name="alert-triangle" size={32} color={theme.colors.error} />
             <Typography variant="h3" color={theme.colors.error} style={{ fontWeight: '700', marginTop: 8 }}>
-              Unable to Load Bulletins
+              {t('unableToLoadBulletins')}
             </Typography>
             <Typography variant="bodyMedium" color={theme.colors.textSecondary} align="center" style={{ marginTop: 4 }}>
-              {feedResult.error || 'Check network connection and retry.'}
+              {feedResult.error || t('checkNetwork')}
             </Typography>
-            <Button title="Retry Now" variant="outline" onPress={onRefresh} style={{ marginTop: 12 }} />
+            <Button title={t('retryNow')} variant="outline" onPress={onRefresh} style={{ marginTop: 12 }} />
           </Card>
         )}
 
-        {/* Clear State (No Active Alerts) */}
+        {/* Clear State (No Active Alerts or No Matches for Filter) */}
         {!loading && (feedResult?.status === 'clear' || filteredAlerts.length === 0) && (
           <Card style={{ padding: theme.spacing.l, alignItems: 'center', marginBottom: theme.spacing.m }}>
             <View
@@ -254,13 +238,13 @@ export default function Alerts() {
               <Icon name="sun" size={24} color={theme.colors.primary} />
             </View>
             <Typography variant="h3" style={{ fontWeight: '700', textAlign: 'center' }}>
-              {t('noActiveAlerts')}
+              {severityFilter !== 'all' && (feedResult?.alerts?.length || 0) > 0 ? t('noFilteredAlerts') : t('noActiveAlerts')}
             </Typography>
             <Typography variant="bodyMedium" color={theme.colors.textSecondary} align="center" style={{ marginTop: 6, lineHeight: 20 }}>
-              {t('noAlertsDesc')}
+              {severityFilter !== 'all' && (feedResult?.alerts?.length || 0) > 0 ? t('noFilteredAlerts') : t('noAlertsDesc')}
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 12 }}>
-              Last checked: {feedResult?.lastUpdated || new Date().toLocaleTimeString()}
+              {t('lastChecked')}: {feedResult?.lastUpdated || new Date().toLocaleTimeString()}
             </Typography>
           </Card>
         )}

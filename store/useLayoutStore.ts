@@ -71,7 +71,10 @@ export const useLayoutStore = create<LayoutState>()(
 
       addWidget: (type) => {
         set((state) => ({
-          layout: [...state.layout, { id: `widget-${type}-${Date.now()}`, type }],
+          layout: [
+            ...state.layout,
+            { id: `widget-${type}-${Date.now()}-${Math.floor(Math.random() * 100000)}`, type },
+          ],
         }));
         const userId = useAuthStore.getState().user?.id || null;
         triggerBackgroundSync(userId);

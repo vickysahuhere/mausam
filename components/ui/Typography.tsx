@@ -8,8 +8,9 @@ interface Props extends TextProps {
   align?: 'left' | 'center' | 'right';
 }
 
-export function Typography({ variant = 'body', color, align = 'left', style, maxFontSizeMultiplier = 1.2, ...props }: Props) {
+export function Typography({ variant = 'body', color, align = 'left', style, maxFontSizeMultiplier = 1.5, ...props }: Props) {
   const theme = useTheme();
+  const isHeading = variant === 'h1' || variant === 'h2' || variant === 'h3';
 
   const getVariantStyles = () => {
     switch (variant) {
@@ -54,12 +55,13 @@ export function Typography({ variant = 'body', color, align = 'left', style, max
   return (
     <Text
       maxFontSizeMultiplier={maxFontSizeMultiplier}
+      accessibilityRole={props.accessibilityRole || (isHeading ? 'header' : undefined)}
       style={[
         getVariantStyles(),
         {
           color: color || theme.colors.text,
           textAlign: align,
-          fontFamily: theme.typography.fontFamily.regular,
+          fontFamily: isHeading ? theme.typography.fontFamily.bold : theme.typography.fontFamily.regular,
           includeFontPadding: false,
         },
         style,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
@@ -13,11 +13,31 @@ export default function Landing() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View style={{ flex: 1, padding: theme.spacing.l, justifyContent: 'space-between' }}>
-        <View style={{ flex: 1, justifyContent: 'center' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View
+            style={{
+              width: 120,
+              height: 120,
+              borderRadius: 30,
+              overflow: 'hidden',
+              marginBottom: theme.spacing.l,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.18,
+              shadowRadius: 20,
+              elevation: 8,
+            }}
+          >
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+          </View>
           <Typography variant="h1" color={theme.colors.primary} align="center">
             Mausam
           </Typography>
-          <Typography variant="bodyMedium" color={theme.colors.textSecondary} align="center" style={{ marginTop: theme.spacing.m }}>
+          <Typography variant="bodyMedium" color={theme.colors.textSecondary} align="center" style={{ marginTop: theme.spacing.s }}>
             Your personalized weather companion
           </Typography>
         </View>

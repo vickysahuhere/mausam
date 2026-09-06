@@ -6,6 +6,7 @@ import { Typography } from '../ui/Typography';
 import { Icon } from '../ui/Icon';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAnimationStore } from '../../store/useAnimationStore';
+import { useLocaleStore } from '../../store/useLocaleStore';
 
 interface Props {
   visible: boolean;
@@ -29,17 +30,19 @@ export function RadarMapModal({
 }: Props) {
   const theme = useTheme();
   const animationsEnabled = useAnimationStore((state) => state.animationsEnabled);
+  const t = useLocaleStore((state) => state.t);
 
   const [activeLayer, setActiveLayer] = useState<'radar' | 'satellite' | 'wind'>('radar');
   const [isPlaying, setIsPlaying] = useState(animationsEnabled);
   const [frames, setFrames] = useState<RadarFrame[]>([]);
+  const [satellitePath, setSatellitePath] = useState<string | null>(null);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const webViewRef = useRef<WebView>(null);
   const playIntervalRef = useRef<any>(null);
 
-  // Fetch RainViewer radar timestamps for live Doppler coverage
+  // Fetch RainViewer radar and satellite timestamps for live Doppler coverage
   useEffect(() => {
     if (!visible) return;
 
@@ -53,6 +56,12 @@ export function RadarMapModal({
         const all = [...past, ...nowcast];
         setFrames(all);
         setCurrentFrameIndex(past.length > 0 ? past.length - 1 : 0);
+
+        const satInfra = data.satellite?.infrared || [];
+        if (satInfra.length > 0) {
+          setSatellitePath(satInfra[satInfra.length - 1].path);
+        }
+
         setLoading(false);
       })
       .catch(() => {
@@ -97,7 +106,7 @@ export function RadarMapModal({
   const handleLayerChange = (layer: 'radar' | 'satellite' | 'wind') => {
     setActiveLayer(layer);
     if (webViewRef.current) {
-      webViewRef.current.postMessage(JSON.stringify({ type: 'SET_LAYER', layer }));
+      webViewRef.current.postMessage(JSON.stringify({ type: 'SET_LAYER', layer, satellitePath }));
     }
   };
 
@@ -197,7 +206,8 @@ export function RadarMapModal({
         } else if (data.type === 'SET_LAYER') {
           if (data.layer === 'satellite') {
             if (radarLayer) map.removeLayer(radarLayer);
-            radarLayer = L.tileLayer('https://tilecache.rainviewer.com/v2/satellite/1690000000/256/{z}/{x}/{y}/0/0_0.png', { opacity: 0.65 }).addTo(map);
+            var satPath = data.satellitePath || ('/v2/satellite/' + Math.floor(Date.now() / 1000 - 600));
+            radarLayer = L.tileLayer('https://tilecache.rainviewer.com' + satPath + '/256/{z}/{x}/{y}/0/0_0.png', { opacity: 0.65 }).addTo(map);
           } else {
             updateRadarTile(currentPath);
           }
@@ -216,7 +226,7 @@ export function RadarMapModal({
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Typography variant="h3" numberOfLines={1} style={{ fontWeight: '800' }}>
-              Live Radar & Satellite
+              {t('liveRadarSatellite')}
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1}>
               {locationName} ({initialLat.toFixed(2)}N, {initialLon.toFixed(2)}E)
@@ -261,14 +271,14 @@ export function RadarMapModal({
                 <Icon
                   name={l === 'radar' ? 'radar' : l === 'satellite' ? 'cloud' : 'wind'}
                   size={13}
-                  color={activeLayer === l ? '#fff' : theme.colors.text}
+                  color={activeLayer === l ? (theme.colors.onPrimary || '#fff') : theme.colors.text}
                 />
                 <Typography
                   variant="caption"
-                  color={activeLayer === l ? '#fff' : theme.colors.text}
+                  color={activeLayer === l ? (theme.colors.onPrimary || '#fff') : theme.colors.text}
                   style={{ marginLeft: 4, fontWeight: '700', textTransform: 'capitalize' }}
                 >
-                  {l === 'radar' ? 'Doppler Radar' : l === 'satellite' ? 'INSAT Clouds' : 'Wind Vectors'}
+                  {l === 'radar' ? t('dopplerRadar') : l === 'satellite' ? t('insatClouds') : t('windVectors')}
                 </Typography>
               </TouchableOpacity>
             ))}
@@ -281,7 +291,7 @@ export function RadarMapModal({
             <View style={styles.loader}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 8 }}>
-                Loading live radar feeds...
+                {t('loadingRadar')}
               </Typography>
             </View>
           )}
@@ -305,11 +315,11 @@ export function RadarMapModal({
                 activeOpacity={0.7}
                 style={[styles.playButton, { backgroundColor: theme.colors.primary }]}
               >
-                <Icon name={isPlaying ? 'pause' : 'play'} size={14} color="#fff" />
+                <Icon name={isPlaying ? 'pause' : 'play'} size={14} color={theme.colors.onPrimary || '#fff'} />
               </TouchableOpacity>
               <View style={{ marginLeft: 10 }}>
                 <Typography variant="caption" color={theme.colors.textSecondary}>
-                  Radar Loop Time
+                  {t('radarLoopTime')}
                 </Typography>
                 <Typography variant="bodyMedium" style={{ fontWeight: '700' }}>
                   {formattedTime}
@@ -324,7 +334,7 @@ export function RadarMapModal({
             >
               <Icon name="map-pin" size={13} color={theme.colors.primary} />
               <Typography variant="caption" color={theme.colors.primary} style={{ marginLeft: 4, fontWeight: '700' }}>
-                Center
+                {t('centerMap')}
               </Typography>
             </TouchableOpacity>
           </View>

@@ -9,6 +9,7 @@ import { ParentTheme } from './themes/parent';
 import { AgricultureTheme } from './themes/agriculture';
 import { CommuterTheme } from './themes/commuter';
 import { EventTheme } from './themes/event';
+import { VintageCreamTheme } from './themes/vintageCream';
 
 export const THEME_REGISTRY = {
   [CustomTheme.id]: CustomTheme,
@@ -22,4 +23,5 @@ export const THEME_REGISTRY = {
   [AgricultureTheme.id]: AgricultureTheme,
   [CommuterTheme.id]: CommuterTheme,
   [EventTheme.id]: EventTheme,
+  [VintageCreamTheme.id]: VintageCreamTheme,
 };

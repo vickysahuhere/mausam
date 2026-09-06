@@ -14,8 +14,7 @@ import * as Location from 'expo-location';
 
 export default function Locations() {
   const theme = useTheme();
-  const _locale = useLocaleStore((state) => state.locale);
-  void _locale;
+  useLocaleStore((state) => state.locale);
   const t = useLocaleStore((state) => state.t);
   const { locations, setDefaultLocation, addLocation, removeLocation } = useLocationStore();
 
@@ -31,7 +30,7 @@ export default function Locations() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to detect your GPS position.');
+        Alert.alert(t('permissionDenied'), t('permissionDeniedDesc'));
         setLoadingGps(false);
         return;
       }
@@ -67,7 +66,7 @@ export default function Locations() {
       setSearchQuery('');
       setSearchResults([]);
     } catch {
-      Alert.alert('GPS Error', 'Could not detect your current GPS location.');
+      Alert.alert(t('gpsError'), t('permissionDeniedDesc'));
     } finally {
       setLoadingGps(false);
     }
@@ -116,7 +115,7 @@ export default function Locations() {
   const handleDelete = (loc: SavedLocation) => {
     Alert.alert(
       t('removeLocation'),
-      `Remove "${loc.label}" from your saved locations?`,
+      t('deleteLocationConfirm'),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -181,7 +180,7 @@ export default function Locations() {
             </View>
 
             <Button
-              title={loadingGps ? 'Acquiring GPS...' : t('detectGps')}
+              title={loadingGps ? t('acquiringGps') : t('detectGps')}
               variant="primary"
               onPress={handleUseGps}
               disabled={loadingGps}
@@ -226,7 +225,7 @@ export default function Locations() {
 
             {searching && (
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ paddingVertical: 8 }}>
-                Searching Indian meteorological registry...
+                {t('searchingRegistry')}
               </Typography>
             )}
 
@@ -296,7 +295,7 @@ export default function Locations() {
                         flexShrink: 0,
                       }}
                     >
-                      <Typography variant="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>
+                      <Typography variant="caption" style={{ color: theme.colors.onPrimary || '#FFFFFF', fontSize: 9, fontWeight: '800' }}>
                         {t('primaryBadge')}
                       </Typography>
                     </View>

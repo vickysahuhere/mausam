@@ -191,14 +191,14 @@ export async function syncFromCloud(userId: string): Promise<boolean> {
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     // 2. Fetch user_layouts
     const { data: layoutData } = await supabase
       .from('user_layouts')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     // 3. Fetch user_locations
     const { data: locationsData } = await supabase
@@ -206,41 +206,91 @@ export async function syncFromCloud(userId: string): Promise<boolean> {
       .select('*')
       .eq('user_id', userId);
 
-    const hasCloudRecords = profile || layoutData || (locationsData && locationsData.length > 0);
-
-    if (hasCloudRecords) {
-      if (locationsData && locationsData.length > 0) {
-        const mappedLocations: SavedLocation[] = locationsData.map((l: any) => ({
-          id: l.id,
-          label: l.label,
-          lat: l.lat,
-          lon: l.lon,
-          isDefault: !!l.is_default,
-        }));
-        getLocationStore().setState({ locations: mappedLocations });
-      }
-
-      if (layoutData) {
-        getLayoutStore().setState({
-          layout: layoutData.layout || [],
-          activeThemeId: layoutData.active_theme_id || 'custom',
-          hasInitialized: true,
-        });
-      }
-
-      if (profile?.persona_vector) {
-        getAuthStore().setState({
-          personaVector: profile.persona_vector,
-          surveyCompleted: true,
-        });
-      }
-
-      notifySyncState({ status: 'synced', lastSyncedAt: new Date().toISOString() });
-      return true;
+    // Profile & Name Resolution
+    const currentUser = getAuthStore().getState().user;
+    const resolvedName = profile?.full_name || currentUser?.fullName;
+    if (currentUser && resolvedName && currentUser.fullName !== resolvedName) {
+      getAuthStore().setState({
+        user: { ...currentUser, fullName: resolvedName },
+      });
     }
 
-    // New user with no cloud records yet: upload current local state
-    return await migrateGuestToAccount(userId);
+    if (currentUser?.fullName && (!profile || !profile.full_name)) {
+      await supabase.from('user_profiles').upsert({
+        user_id: userId,
+        full_name: currentUser.fullName,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // Locations Resolution: If cloud has locations, hydrate. Otherwise push local to cloud!
+    const localLocations = getLocationStore().getState().locations;
+    if (locationsData && locationsData.length > 0) {
+      const mappedLocations: SavedLocation[] = locationsData.map((l: any) => ({
+        id: l.id || `loc-${l.lat}-${l.lon}`,
+        label: l.label,
+        lat: l.lat,
+        lon: l.lon,
+        isDefault: !!l.is_default,
+      }));
+      if (!mappedLocations.some((l) => l.isDefault)) {
+        mappedLocations[0].isDefault = true;
+      }
+      getLocationStore().setState({ locations: mappedLocations });
+    } else if (localLocations.length > 0) {
+      for (const loc of localLocations) {
+        await supabase.from('user_locations').upsert(
+          {
+            user_id: userId,
+            label: loc.label,
+            lat: loc.lat,
+            lon: loc.lon,
+            is_default: loc.isDefault,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,lat,lon' }
+        );
+      }
+    }
+
+    // Layout Resolution
+    const localLayout = getLayoutStore().getState().layout;
+    const localTheme = getLayoutStore().getState().activeThemeId;
+    if (layoutData && layoutData.layout && Array.isArray(layoutData.layout) && layoutData.layout.length > 0) {
+      getLayoutStore().setState({
+        layout: layoutData.layout,
+        activeThemeId: layoutData.active_theme_id || profile?.active_theme_id || 'custom',
+        hasInitialized: true,
+      });
+    } else if (localLayout.length > 0) {
+      await supabase.from('user_layouts').upsert({
+        user_id: userId,
+        layout: localLayout,
+        active_theme_id: localTheme,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // Persona Vector & Survey Resolution
+    const localVector = getAuthStore().getState().personaVector;
+    if (profile?.persona_vector) {
+      getAuthStore().setState({
+        personaVector: profile.persona_vector,
+        surveyCompleted: true,
+      });
+    } else if (localVector) {
+      await supabase.from('user_profiles').upsert({
+        user_id: userId,
+        full_name: currentUser?.fullName || profile?.full_name || undefined,
+        persona_vector: localVector,
+        active_theme_id: localTheme,
+        survey_completed: true,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    notifySyncState({ status: 'synced', lastSyncedAt: new Date().toISOString() });
+    return true;
   } catch (err: any) {
     console.error('syncFromCloud error:', err);
     notifySyncState({ status: 'offline', errorMessage: 'Network offline / using cached state' });
@@ -263,13 +313,16 @@ export function triggerBackgroundSync(userId: string | null) {
       const layout = getLayoutStore().getState().layout;
       const themeId = getLayoutStore().getState().activeThemeId;
       const vector = getAuthStore().getState().personaVector;
+      const userFullName = getAuthStore().getState().user?.fullName;
 
       if (!isSupabaseConfigured()) {
         await saveMockCloudData(userId, {
           profile: {
             user_id: userId,
+            full_name: userFullName,
             persona_vector: vector,
             active_theme_id: themeId,
+            survey_completed: true,
             updated_at: new Date().toISOString(),
           },
           locations,
@@ -280,7 +333,7 @@ export function triggerBackgroundSync(userId: string | null) {
       }
 
       // Sync locations, layout, and profile
-      await Promise.all([
+      const syncPromises: PromiseLike<any>[] = [
         supabase.from('user_layouts').upsert({
           user_id: userId,
           layout,
@@ -289,15 +342,36 @@ export function triggerBackgroundSync(userId: string | null) {
         }),
         supabase.from('user_profiles').upsert({
           user_id: userId,
+          full_name: userFullName || undefined,
           persona_vector: vector,
           active_theme_id: themeId,
+          survey_completed: true,
           updated_at: new Date().toISOString(),
         }),
-      ]);
+      ];
 
+      if (locations && locations.length > 0) {
+        for (const loc of locations) {
+          syncPromises.push(
+            supabase.from('user_locations').upsert(
+              {
+                user_id: userId,
+                label: loc.label,
+                lat: loc.lat,
+                lon: loc.lon,
+                is_default: loc.isDefault,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,lat,lon' }
+            )
+          );
+        }
+      }
+
+      await Promise.all(syncPromises);
       notifySyncState({ status: 'synced', lastSyncedAt: new Date().toISOString() });
     } catch (e: any) {
-      console.warn('Background sync deferred:', e.message);
+      console.warn('Background sync deferred:', e?.message || e);
       notifySyncState({ status: 'offline' });
     }
   }, 1000);

@@ -82,7 +82,7 @@ function ThemePreview({
                 justifyContent: 'center',
               }}
             >
-              <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+              <Icon name="check" size={12} color={currentTheme.colors.onPrimary || '#FFFFFF'} strokeWidth={3} />
             </View>
           )}
         </View>
@@ -214,7 +214,7 @@ export function ThemeSelector() {
               marginBottom: 10,
             }}
           >
-            <Icon name="plus" size={20} color="#FFFFFF" />
+            <Icon name="plus" size={20} color={theme.colors.onPrimary || '#FFFFFF'} />
           </View>
           <Typography variant="caption" style={{ fontWeight: '800', color: theme.colors.primary, textAlign: 'center' }}>
             + Create Theme

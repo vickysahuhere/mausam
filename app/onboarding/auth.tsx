@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Icon } from '../../components/ui/Icon';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useLocationStore } from '../../store/useLocationStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
 export default function Auth() {
@@ -33,6 +34,19 @@ export default function Auth() {
   const [otpCode, setOtpCode] = useState('');
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
+
+  const navigateAfterAuth = () => {
+    const hasDefaultLoc = useLocationStore.getState().locations.some((l) => l.isDefault);
+    const isSurveyDone = useAuthStore.getState().surveyCompleted;
+
+    if (hasDefaultLoc && isSurveyDone) {
+      router.replace('/(tabs)');
+    } else if (!isSurveyDone) {
+      router.replace('/onboarding/survey');
+    } else {
+      router.replace('/onboarding/location-setup');
+    }
+  };
 
   const handleGuestLogin = () => {
     setGuest(true);
@@ -61,7 +75,7 @@ export default function Auth() {
       if (mode === 'signin') {
         const res = await signInWithPassword(trimmedEmail, password);
         if (res.success) {
-          router.push('/onboarding/survey');
+          navigateAfterAuth();
         } else {
           setErrorMsg(res.error || 'Authentication failed. Please check your credentials.');
         }
@@ -71,7 +85,7 @@ export default function Auth() {
           if (res.requiresVerification) {
             setAwaitingVerification(true);
           } else {
-            router.push('/onboarding/survey');
+            navigateAfterAuth();
           }
         } else {
           setErrorMsg(res.error || 'Registration failed. Please try again.');
@@ -96,7 +110,7 @@ export default function Auth() {
       const res = await verifyOtp(email.trim(), trimmedCode);
       if (res.success) {
         Alert.alert('Email Confirmed!', 'Your account has been verified and synced.');
-        router.push('/onboarding/survey');
+        navigateAfterAuth();
       } else {
         setErrorMsg(res.error || 'Invalid or expired confirmation code.');
       }
@@ -114,7 +128,7 @@ export default function Auth() {
       const res = await checkVerificationStatus(email.trim(), password);
       if (res.success) {
         Alert.alert('Welcome!', 'Your email is confirmed and your account is active.');
-        router.push('/onboarding/survey');
+        navigateAfterAuth();
       } else {
         setErrorMsg('Email not verified yet. Please tap the link in your email or enter the code.');
       }
@@ -158,13 +172,34 @@ export default function Auth() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <View style={{ marginBottom: theme.spacing.l }}>
-            <Typography variant="h1" style={{ fontWeight: '800', marginBottom: theme.spacing.xs }}>
-              Mausam
-            </Typography>
-            <Typography variant="body" color={theme.colors.textSecondary}>
-              Personalized, hyper-local weather intelligence designed for India.
-            </Typography>
+          <View style={{ marginBottom: theme.spacing.l, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 14,
+                overflow: 'hidden',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+                elevation: 4,
+              }}
+            >
+              <Image
+                source={require('../../assets/images/logo.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Typography variant="h1" style={{ fontWeight: '800', marginBottom: 2 }}>
+                Mausam
+              </Typography>
+              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={2}>
+                Personalized, hyper-local weather intelligence designed for India.
+              </Typography>
+            </View>
           </View>
 
           {/* Email Confirmation Screen */}
