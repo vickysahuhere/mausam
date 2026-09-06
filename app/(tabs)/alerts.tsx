@@ -21,7 +21,7 @@ export default function Alerts() {
 
   const [activeLocId, setActiveLocId] = useState<string | null>(null);
   const [feedResult, setFeedResult] = useState<AlertFeedResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<'all' | 'red' | 'orange' | 'yellow'>('all');
 
@@ -34,6 +34,7 @@ export default function Alerts() {
     }
 
     const loadAlerts = async () => {
+      setLoading(true);
       try {
         const res = await getAlertsForLocation(selectedLoc.lat, selectedLoc.lon, selectedLoc.label);
         if (cancelled) return;

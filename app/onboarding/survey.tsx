@@ -8,6 +8,8 @@ import { Card } from '../../components/ui/Card';
 import { SURVEY_QUESTIONS } from '../../lib/surveyQuestions';
 import { buildPersonaVector } from '../../lib/personaEngine';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useLayoutStore } from '../../store/useLayoutStore';
+import { useLocationStore } from '../../store/useLocationStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
 export default function Survey() {
@@ -52,7 +54,14 @@ export default function Survey() {
     const vector = buildPersonaVector(allSelectedIds);
     setPersonaVector(vector);
     completeSurvey();
-    router.push('/onboarding/location-setup');
+    useLayoutStore.getState().reinitializeLayout(vector);
+
+    const hasLocation = useLocationStore.getState().locations.some((l) => l.isDefault);
+    if (hasLocation) {
+      router.replace('/(tabs)');
+    } else {
+      router.push('/onboarding/location-setup');
+    }
   };
 
   return (

@@ -10,6 +10,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { WeatherAtmosphere } from '../../components/ui/WeatherAtmosphere';
 import { searchCities, GeocodedLocation } from '../../lib/citySearch';
+import * as Location from 'expo-location';
 
 export default function Locations() {
   const theme = useTheme();
@@ -23,6 +24,54 @@ export default function Locations() {
   const [searchResults, setSearchResults] = useState<GeocodedLocation[]>([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [loadingGps, setLoadingGps] = useState(false);
+
+  const handleUseGps = async () => {
+    setLoadingGps(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to detect your GPS position.');
+        setLoadingGps(false);
+        return;
+      }
+      let position = await Location.getLastKnownPositionAsync();
+      if (!position) {
+        position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      }
+      const { latitude, longitude } = position.coords;
+      let label = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      try {
+        const geocoded = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (geocoded.length > 0) {
+          const g = geocoded[0];
+          const locality = g.name || g.district || g.subregion;
+          const cityOrState = g.city || g.region;
+          const parts = [locality, cityOrState, g.country].filter(Boolean);
+          if (parts.length > 0) {
+            label = parts.join(', ');
+          }
+        }
+      } catch {
+        // Keep coordinates
+      }
+
+      addLocation({
+        id: `loc-gps-${Date.now()}`,
+        label,
+        lat: latitude,
+        lon: longitude,
+        isDefault: locations.length === 0,
+      });
+      setShowAddSearch(false);
+      setSearchQuery('');
+      setSearchResults([]);
+    } catch {
+      Alert.alert('GPS Error', 'Could not detect your current GPS location.');
+    } finally {
+      setLoadingGps(false);
+    }
+  };
 
   const handleSearch = async (text: string) => {
     setSearchQuery(text);
@@ -128,6 +177,18 @@ export default function Locations() {
                 <Icon name="x" size={18} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
+
+            <Button
+              title={loadingGps ? 'Acquiring GPS...' : t('detectGps')}
+              variant="primary"
+              onPress={handleUseGps}
+              disabled={loadingGps}
+              loading={loadingGps}
+              style={{ marginBottom: 10 }}
+            />
+            <Typography variant="caption" color={theme.colors.textSecondary} align="center" style={{ marginBottom: 8 }}>
+              {t('orSearchCity')}
+            </Typography>
 
             <View
               style={{

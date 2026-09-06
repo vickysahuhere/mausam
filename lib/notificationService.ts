@@ -68,7 +68,7 @@ export async function triggerLocalWeatherAlert(
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `${severity === 'red' ? '?? RED ALERT' : '?? WARNING'}: ${title}`,
+        title: `${severity === 'red' ? '🚨 RED ALERT' : '⚠️ WARNING'}: ${title}`,
         body,
         data: { severity },
         sound: true,

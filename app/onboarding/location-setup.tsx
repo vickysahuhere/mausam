@@ -269,7 +269,7 @@ export default function LocationSetup() {
       >
         <Button
           title="Continue to Mausam"
-          onPress={() => router.push('/(tabs)')}
+          onPress={() => router.replace('/(tabs)')}
           disabled={!canContinue}
         />
       </View>

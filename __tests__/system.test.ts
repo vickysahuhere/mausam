@@ -1,5 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+if (typeof (global as any).window === 'undefined') {
+  (global as any).window = {
+    localStorage: {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+    },
+  };
+}
 import { buildPersonaVector, generateInitialLayout } from '../lib/personaEngine';
 import { comfortIndex, frostAlert, douglasSeaScale } from '../lib/derived';
 import { TRANSLATIONS, SUPPORTED_LOCALES } from '../lib/i18n';
@@ -116,4 +127,34 @@ test('Custom Theme Studio: Template validation & structure', () => {
     assert.ok(theme.colors.text, `${theme.id} must have text color`);
     assert.ok(theme.artDirection.cardStyle, `${theme.id} must define cardStyle`);
   }
+});
+
+test('Location & Survey: End-to-end integration and routing integrity', () => {
+  const { useLocationStore } = require('../store/useLocationStore');
+  const { useLayoutStore } = require('../store/useLayoutStore');
+  const { buildPersonaVector } = require('../lib/personaEngine');
+
+  // Verify persona vector produces valid layout
+  const vector = buildPersonaVector(['q1_fitness', 'q2_rain']);
+  assert.ok(vector.fitness > 0, 'Vector must score fitness');
+  
+  useLayoutStore.getState().reinitializeLayout(vector);
+  const layout = useLayoutStore.getState().layout;
+  assert.ok(layout.length >= 6, 'Generated layout must contain at least 6 widgets');
+  assert.strictEqual(layout[0].type, 'current_summary', 'Base row must be current_summary');
+
+  // Verify location store manages default and primary locations
+  useLocationStore.getState().reset();
+  useLocationStore.getState().addLocation({
+    id: 'test-loc-1',
+    label: 'Connaught Place, New Delhi',
+    lat: 28.6315,
+    lon: 77.2167,
+    isDefault: true,
+  });
+
+  const locs = useLocationStore.getState().locations;
+  assert.strictEqual(locs.length, 1);
+  assert.strictEqual(locs[0].isDefault, true);
+  assert.ok(locs.some((l: any) => l.isDefault), 'Must detect existing default location');
 });
