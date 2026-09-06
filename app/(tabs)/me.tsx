@@ -18,6 +18,7 @@ import { useLocaleStore } from '../../store/useLocaleStore';
 import { SUPPORTED_LOCALES, SupportedLocale } from '../../lib/i18n';
 import { useAnimationStore } from '../../store/useAnimationStore';
 import { triggerLocalWeatherAlert } from '../../lib/notificationService';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 export default function MeScreen() {
   const router = useRouter();
@@ -216,6 +217,57 @@ export default function MeScreen() {
               </View>
             )}
           </View>
+
+          {/* Database Connection Status Row */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: isSupabaseConfigured() ? '#10B98115' : '#F59E0B15',
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 8,
+              marginTop: 10,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: isSupabaseConfigured() ? '#10B981' : '#F59E0B',
+                }}
+              />
+              <Typography
+                variant="caption"
+                color={isSupabaseConfigured() ? '#10B981' : '#F59E0B'}
+                style={{ fontWeight: '700', fontSize: 11 }}
+                numberOfLines={1}
+              >
+                {isSupabaseConfigured()
+                  ? 'Database: Connected to Supabase Cloud'
+                  : 'Database: Local Offline Storage'}
+              </Typography>
+            </View>
+            <Typography
+              variant="caption"
+              color={theme.colors.textSecondary}
+              style={{ fontSize: 10 }}
+            >
+              {isSupabaseConfigured() ? 'PostgreSQL / RLS' : 'AsyncStorage'}
+            </Typography>
+          </View>
+          {!isSupabaseConfigured() && (
+            <Typography
+              variant="caption"
+              color={theme.colors.textSecondary}
+              style={{ fontSize: 10, marginTop: 4, fontStyle: 'italic' }}
+            >
+              Add EXPO_PUBLIC_SUPABASE_URL and ANON_KEY to .env to connect live cloud database.
+            </Typography>
+          )}
 
           {/* Authenticated Controls */}
           {hasSession && user ? (
