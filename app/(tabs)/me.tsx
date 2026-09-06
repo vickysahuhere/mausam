@@ -52,6 +52,23 @@ export default function MeScreen() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [devTapCount, setDevTapCount] = useState(0);
+  const [devModeUnlocked, setDevModeUnlocked] = useState(false);
+
+  const handleVersionTap = () => {
+    const next = devTapCount + 1;
+    setDevTapCount(next);
+    if (next >= 7) {
+      setDevModeUnlocked((prev) => !prev);
+      setDevTapCount(0);
+      Alert.alert(
+        !devModeUnlocked ? 'Developer Mode Unlocked' : 'Developer Mode Disabled',
+        !devModeUnlocked
+          ? 'Developer testing controls, persona force-seeders, and state purge tools are now enabled.'
+          : 'Developer controls have been hidden.'
+      );
+    }
+  };
 
   const handleManualSync = async () => {
     if (!user?.id) return;
@@ -650,13 +667,15 @@ export default function MeScreen() {
           <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
             Personalized Weather Platform {'\u2022'} Ministry of Earth Sciences / IMD
           </Typography>
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-            Version 1.0.0 {'\u2022'} Open Source (MIT)
-          </Typography>
+          <TouchableOpacity onPress={handleVersionTap} activeOpacity={0.8} style={{ marginTop: 4 }}>
+            <Typography variant="caption" color={theme.colors.textSecondary}>
+              Version 1.0.0 {'\u2022'} Open Source (MIT){devModeUnlocked ? ' \u2022 [Dev Mode ON]' : ''}
+            </Typography>
+          </TouchableOpacity>
         </Card>
 
-        {/* SECTION 6: DEVELOPER OPTIONS (DEV ONLY) */}
-        {__DEV__ && (
+        {/* SECTION 6: DEVELOPER OPTIONS (HIDDEN FROM NORMIES) */}
+        {(devModeUnlocked || __DEV__) && (
           <View style={{ marginTop: theme.spacing.s, marginBottom: theme.spacing.xl }}>
             <Typography variant="caption" color={theme.colors.error} style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 }}>
               Developer Options [DEV ONLY]
