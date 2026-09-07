@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -11,8 +12,11 @@ import { useLocaleStore } from '../../store/useLocaleStore';
 import { WeatherAtmosphere } from '../../components/ui/WeatherAtmosphere';
 import { searchCities, GeocodedLocation } from '../../lib/citySearch';
 import * as Location from 'expo-location';
+import { companionEvents } from '../../lib/companion/companionEvents';
+import { useCompanionStore } from '../../store/useCompanionStore';
 
 export default function Locations() {
+  const router = useRouter();
   const theme = useTheme();
   useLocaleStore((state) => state.locale);
   const t = useLocaleStore((state) => state.t);
@@ -131,6 +135,8 @@ export default function Locations() {
 
   const handleSetPrimary = (loc: SavedLocation) => {
     setDefaultLocation(loc.id);
+    useCompanionStore.getState().incrementLocationChangeCount();
+    companionEvents.emit('location_changed', { locationName: loc.label });
   };
 
   return (
@@ -266,79 +272,119 @@ export default function Locations() {
           </Card>
         )}
 
-        {/* Saved Locations List */}
-        {locations.map((loc) => (
-          <Card
-            key={loc.id}
-            style={{
-              marginBottom: theme.spacing.s,
-              padding: theme.spacing.m,
-              borderColor: loc.isDefault ? theme.colors.primary : theme.colors.border,
-              borderWidth: loc.isDefault ? 1.5 : 1,
-            }}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                  <Icon name="map-pin" size={15} color={loc.isDefault ? theme.colors.primary : theme.colors.textSecondary} />
-                  <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '700', marginLeft: 6, flexShrink: 1 }}>
-                    {loc.label.split(',')[0]}
-                  </Typography>
-                  {loc.isDefault && (
-                    <View
-                      style={{
-                        marginLeft: 8,
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: theme.shapes.borderRadius.pill,
-                        backgroundColor: theme.colors.primary,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Typography variant="caption" style={{ color: theme.colors.onPrimary || '#FFFFFF', fontSize: 9, fontWeight: '800' }}>
-                        {t('primaryBadge')}
+        {/* Saved Locations List — Apple Weather Style */}
+        {locations.map((loc) => {
+          const cityName = loc.label.split(',')[0].trim();
+          const regionName = loc.label.split(',').slice(1).join(',').trim();
+
+          return (
+            <TouchableOpacity
+              key={loc.id}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!loc.isDefault) {
+                  setDefaultLocation(loc.id);
+                  companionEvents.emit('location_changed', { locationName: cityName });
+                }
+                router.push('/(tabs)');
+              }}
+            >
+              <Card
+                style={{
+                  marginBottom: theme.spacing.s,
+                  padding: theme.spacing.m,
+                  borderColor: loc.isDefault ? theme.colors.primary : theme.colors.border,
+                  borderWidth: loc.isDefault ? 1.5 : 1,
+                  borderRadius: theme.shapes.borderRadius.l,
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
+                      <View
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: loc.isDefault ? theme.colors.primary : theme.colors.surfaceSecondary,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: 8,
+                        }}
+                      >
+                        <Icon name="map-pin" size={13} color={loc.isDefault ? '#FFFFFF' : theme.colors.primary} />
+                      </View>
+                      <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '800', fontSize: 16, flexShrink: 1, letterSpacing: -0.3 }}>
+                        {cityName}
                       </Typography>
+                      {loc.isDefault && (
+                        <View
+                          style={{
+                            marginLeft: 8,
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: theme.shapes.borderRadius.pill,
+                            backgroundColor: theme.colors.primary,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Typography variant="caption" style={{ color: theme.colors.onPrimary || '#FFFFFF', fontSize: 10, fontWeight: '800' }}>
+                            {t('primaryBadge')}
+                          </Typography>
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
-                <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>
-                  {loc.label}
-                </Typography>
-              </View>
 
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                {!loc.isDefault && (
-                  <TouchableOpacity
-                    onPress={() => handleSetPrimary(loc)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: theme.shapes.borderRadius.s,
-                      backgroundColor: theme.colors.surfaceSecondary,
-                    }}
-                  >
-                    <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
-                      {t('setAsPrimary')}
+                    <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ fontSize: 12, fontWeight: '500' }}>
+                      {regionName || `${loc.lat.toFixed(2)}°, ${loc.lon.toFixed(2)}°`}
                     </Typography>
-                  </TouchableOpacity>
-                )}
+                  </View>
 
-                {locations.length > 1 && (
-                  <TouchableOpacity
-                    onPress={() => handleDelete(loc)}
-                    style={{
-                      padding: 6,
-                      borderRadius: theme.shapes.borderRadius.s,
-                      backgroundColor: theme.colors.surfaceSecondary,
-                    }}
-                  >
-                    <Icon name="trash" size={15} color={theme.colors.error} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </Card>
-        ))}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {!loc.isDefault && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleSetPrimary(loc);
+                        }}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: theme.shapes.borderRadius.s,
+                          backgroundColor: theme.colors.surfaceSecondary,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                        }}
+                      >
+                        <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
+                          {t('setAsPrimary')}
+                        </Typography>
+                      </TouchableOpacity>
+                    )}
+
+                    {locations.length > 1 && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleDelete(loc);
+                        }}
+                        style={{
+                          padding: 7,
+                          borderRadius: theme.shapes.borderRadius.s,
+                          backgroundColor: theme.colors.surfaceSecondary,
+                        }}
+                      >
+                        <Icon name="trash" size={15} color={theme.colors.error} />
+                      </TouchableOpacity>
+                    )}
+
+                    <Icon name="chevron-right" size={14} color={theme.colors.textSecondary} />
+                  </View>
+                </View>
+              </Card>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );

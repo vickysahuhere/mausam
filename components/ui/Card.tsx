@@ -40,7 +40,7 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
           borderColor: colors.border,
           borderWidth: 1,
           borderRadius: shapes.borderRadius.l,
-          shadowColor: '#0284C7',
+          shadowColor: theme.colors.glow || '#0284C7',
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.08,
           shadowRadius: 16,
@@ -50,9 +50,15 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
       case 'flat2d':
         return {
           ...base,
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
           borderWidth: 2.5,
           borderRadius: shapes.borderRadius.s,
+          shadowColor: colors.border,
+          shadowOffset: { width: 3, height: 3 },
+          shadowOpacity: 1,
           shadowRadius: 0,
+          elevation: 0,
         };
 
       case 'oled':
@@ -123,7 +129,7 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
             left: 16,
             right: 16,
             height: 1.5,
-            backgroundColor: 'rgba(255, 255, 255, 0.75)',
+            backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.85)',
             borderRadius: 1,
           }}
           pointerEvents="none"

@@ -3,6 +3,9 @@ import { View, TouchableOpacity, ActivityIndicator, Animated } from 'react-nativ
 import { Typography } from '../ui/Typography';
 import { Icon, IconName } from '../ui/Icon';
 import { Card } from '../ui/Card';
+import { CompanionPerch } from '../companion/CompanionPerch';
+import { companionEvents } from '../../lib/companion/companionEvents';
+import { useCompanionStore } from '../../store/useCompanionStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useWidgetData } from '../widgets/useWidgetData';
 import { CurrentSummaryData, AqiData } from '../../lib/weatherService';
@@ -79,6 +82,28 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
       pulseLoop.stop();
     };
   }, [floatAnim, haloAnim, haloOpacity]);
+
+  // Synchronize companion with ambient weather & track transitions
+  const prevWeatherRef = React.useRef<CurrentSummaryData | null>(null);
+
+  useEffect(() => {
+    if (weather) {
+      const descLower = (weather.desc || '').toLowerCase();
+      const isRain = descLower.includes('rain') || descLower.includes('drizzle') || descLower.includes('shower');
+      const isThunder = descLower.includes('thunder') || descLower.includes('storm');
+      useCompanionStore.getState().syncWithAmbientWeather(weather.temp, isRain, isThunder);
+
+      // Check for weather transitions
+      if (prevWeatherRef.current && prevWeatherRef.current.desc !== weather.desc) {
+        companionEvents.emit('weather_transition', {
+          fromCondition: prevWeatherRef.current.desc,
+          toCondition: weather.desc,
+          temp: weather.temp,
+        });
+      }
+      prevWeatherRef.current = weather;
+    }
+  }, [weather]);
 
   if (loading && !weather) {
     return (
@@ -228,7 +253,16 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
           {/* Hero Temperature */}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => {
+              useCompanionStore.getState().incrementTempTapCount();
+              companionEvents.emit('temperature_card_tapped', {
+                temp: typeof temp === 'number' ? temp : 26,
+              });
+            }}
+            style={{ flexDirection: 'row', alignItems: 'flex-start' }}
+          >
             <Typography
               variant="h1"
               style={{
@@ -253,7 +287,7 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
             >
               °
             </Typography>
-          </View>
+          </TouchableOpacity>
 
           {/* Condition Title */}
           <Typography
@@ -279,7 +313,9 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
               alignSelf: 'flex-start',
               paddingHorizontal: 10,
               paddingVertical: 4,
-              borderRadius: 10,
+              borderRadius: theme.artDirection?.cardStyle === 'flat2d' ? 4 : 10,
+              borderWidth: theme.artDirection?.cardStyle === 'flat2d' ? 1.5 : 0,
+              borderColor: '#264653',
               backgroundColor: theme.colors.surfaceSecondary,
             }}
           >
@@ -297,14 +333,16 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
           style={{
             width: 96,
             height: 96,
-            borderRadius: 48,
+            borderRadius: theme.artDirection?.cardStyle === 'flat2d' ? 16 : 48,
+            borderWidth: theme.artDirection?.cardStyle === 'flat2d' ? 2 : 0,
+            borderColor: '#264653',
             backgroundColor: theme.colors.surfaceSecondary,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: theme.colors.primary,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 16,
+            shadowColor: theme.artDirection?.cardStyle === 'flat2d' ? '#264653' : theme.colors.primary,
+            shadowOffset: theme.artDirection?.cardStyle === 'flat2d' ? { width: 3, height: 3 } : { width: 0, height: 8 },
+            shadowOpacity: theme.artDirection?.cardStyle === 'flat2d' ? 1 : 0.15,
+            shadowRadius: theme.artDirection?.cardStyle === 'flat2d' ? 0 : 16,
             elevation: 0,
             transform: [{ translateY: floatAnim }],
           }}
@@ -385,6 +423,11 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
             </Typography>
           </View>
         )}
+      </View>
+
+      {/* Living Mascot Companion Perch ("Mimi") */}
+      <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+        <CompanionPerch />
       </View>
     </Card>
   );

@@ -57,34 +57,36 @@ Customization is reached from Home (an "Edit" action) or from Settings, not its 
 - → **Main Tab Navigator → Home**
 
 ### 2.6 Home (Persona Homepage)
-- Base row always visible: current temp, high/low, one-line summary.
-- Below: top-N widgets selected by `selectTopWidgets(vector, n)`, rendered in saved layout order (or freshly generated order if no saved layout).
+- **MainWeatherHero**: High-contrast 78px temperature display, high/low glass pill, floating weather centerpiece, and micro-telemetry glass pills (AQI, Wind, Humidity).
+- **Mimi Companion Perch**: Interactive weather-aware companion seated below hero chips with speech bubble, animated tails/paws, gaze tracking, and petting/treat quick actions.
+- Below: top-N widgets selected by `selectTopWidgets(vector, n)`, rendered in saved layout order.
 - Alert banner appears at top if there's an active severe alert for the default location.
-- "Edit" button → enters **Customize mode** (same screen, edit affordances appear: drag handles, remove buttons, "+ Add widget").
-- Pull-to-refresh re-fetches all widget data.
+- "Customize" button (sliders icon in header) → enters **Customize mode** (drag handles, move up/down, remove buttons, "+ Add widget").
+- Pull-to-refresh re-fetches all widget data and increments companion session refresh counter.
 - Each widget independently shows loading/error state — one failed widget never blocks the rest of the screen.
 
-### 2.7 Customize Mode (overlay/mode on Home)
-- Drag-and-drop reorder (long-press + drag).
+### 2.7 Customize Mode (interactive mode on Home)
+- Drag-and-drop reorder via `DraggableFlatList` and one-tap Move Up / Move Down buttons.
 - Remove button per widget.
-- "+ Add widget" opens **Widget Library** (bottom sheet or full screen) listing every widget from every persona, with add/remove toggles.
-- "Save" persists to `user_layouts`; "Done" exits customize mode.
+- "+ Add widget" opens **Widget Library** bottom sheet listing every widget from every persona, with add/remove toggles.
+- "Save / Done" persists layout order to `user_layouts`.
 
 ### 2.8 Alerts (tab)
-- List of active IMD warnings across all saved locations, most severe/soonest first.
+- List of active IMD warnings across all saved locations, sorted by severity and recency.
 - Tapping an alert expands details (type, severity, valid-until, affected area).
 
 ### 2.9 Locations (tab)
-- List of saved locations (home/work/travel), each with a small current-conditions preview.
-- "+ Add location" → manual search or GPS.
-- Swipe or long-press to set default / remove.
+- List of saved locations (home/work/travel), each with live current-conditions preview.
+- "+ Add location" → GPS auto-detection or locality search.
+- One-tap primary location selection emits `location_changed` to companion.
 
-### 2.10 Settings (tab)
-- Units toggle (°C/°F, km/h/mph).
-- Notification preferences (which alert types).
-- "Retake survey" → re-runs Survey flow; on completion, compares new suggested layout to saved layout and only prompts "Update your homepage?" if they differ meaningfully.
-- Account (sign out, delete account/data).
-- Privacy notice link.
+### 2.10 Me / Settings (tab)
+- **Companion Profile**: Master toggle for Mimi, affinity bonding level (Lv. 1–10), and pet/treat counters.
+- **Language Switcher (Bhasha Engine)**: Real-time switching between English, हिन्दी, বাংলা, मराठी, தமிழ், తెలుగు, and ಕನ್ನಡ.
+- **Theme Studio**: Custom visual theme builder for primary colors, border radii, and card translucency.
+- **Personalization**: Active persona display, "Retake Survey", and reset layout.
+- **Units & Preferences**: Metric/Imperial toggles (°C/°F, km/h vs m/s).
+- **Developer Options** (in `__DEV__`): One-click full reset and instant persona layout seeding for testing.
 
 ---
 

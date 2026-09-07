@@ -48,7 +48,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "npx tsx --test __tests__/system.test.ts"
+    "test": "npx tsx --test __tests__/system.test.ts __tests__/companion.test.ts"
   },
   "private": true
 }

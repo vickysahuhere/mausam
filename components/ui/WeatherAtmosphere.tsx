@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Animated, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Polygon, G } from 'react-native-svg';
 import { useAnimationStore } from '../../store/useAnimationStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -107,7 +107,7 @@ export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
     >
       {/* Atmosphere Background Elements */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {/* Fluid Atmospheric Sky Gradient for Apple Liquid & Glass themes */}
+        {/* Apple Liquid & Glass Themes: Fluid Celestial Sky & Specular Radiance */}
         {(theme.artDirection?.cardStyle === 'glass' || theme.id === 'apple-liquid') ? (
           <View style={StyleSheet.absoluteFill}>
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
@@ -151,6 +151,97 @@ export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
                 borderRadius: 50,
                 backgroundColor: 'rgba(255, 255, 255, 0.16)',
                 transform: [{ translateX: animationsEnabled ? cloud2 : 0 }],
+              }}
+            />
+          </View>
+        ) : (theme.artDirection?.cardStyle === 'flat2d' || theme.id === 'retro-peaceful') ? (
+          /* Retro 2D Peaceful: Comic Sunburst & Bold Contoured 2D Cloud Vectors */
+          <View style={StyleSheet.absoluteFill}>
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+              <Defs>
+                <RadialGradient id="retroSunGlow" cx="85%" cy="12%" r="45%" fx="85%" fy="12%">
+                  <Stop offset="0%" stopColor="#E9C46A" stopOpacity="0.45" />
+                  <Stop offset="60%" stopColor="#E76F51" stopOpacity="0.15" />
+                  <Stop offset="100%" stopColor="#FAF3E0" stopOpacity="0" />
+                </RadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#retroSunGlow)" />
+
+              {/* Retro 2D Comic Halftone Sunburst Rays */}
+              <G opacity="0.15">
+                <Polygon points={`${width * 0.85},${height * 0.12} ${width},0 ${width * 0.7},0`} fill="#E76F51" />
+                <Polygon points={`${width * 0.85},${height * 0.12} ${width},${height * 0.05} ${width},${height * 0.18}`} fill="#E9C46A" />
+                <Polygon points={`${width * 0.85},${height * 0.12} ${width * 0.6},0 ${width * 0.45},0`} fill="#E76F51" />
+                <Polygon points={`${width * 0.85},${height * 0.12} ${width * 0.9},${height * 0.25} ${width * 0.75},${height * 0.28}`} fill="#E9C46A" />
+              </G>
+            </Svg>
+
+            {/* Retro 2D Comic Clouds with Comic Border and Hard Offset Shadow */}
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 45,
+                left: -40,
+                width: width * 0.75,
+                height: 75,
+                borderRadius: 20,
+                backgroundColor: '#FFFBF2',
+                borderWidth: 2,
+                borderColor: '#264653',
+                shadowColor: '#264653',
+                shadowOffset: { width: 4, height: 4 },
+                shadowOpacity: 1,
+                shadowRadius: 0,
+                elevation: 0,
+                transform: [{ translateX: animationsEnabled ? cloud1 : 0 }],
+              }}
+            />
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 150,
+                right: -50,
+                width: width * 0.65,
+                height: 65,
+                borderRadius: 18,
+                backgroundColor: '#FFFBF2',
+                borderWidth: 2,
+                borderColor: '#264653',
+                shadowColor: '#264653',
+                shadowOffset: { width: 4, height: 4 },
+                shadowOpacity: 1,
+                shadowRadius: 0,
+                elevation: 0,
+                transform: [{ translateX: animationsEnabled ? cloud2 : 0 }],
+              }}
+            />
+          </View>
+        ) : (theme.id === 'beach') ? (
+          /* Beach Theme: Tropical Horizon Gradient & Sun Ray */
+          <View style={StyleSheet.absoluteFill}>
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+              <Defs>
+                <LinearGradient id="beachSkyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor="#0284C7" stopOpacity="0.25" />
+                  <Stop offset="50%" stopColor="#38BDF8" stopOpacity="0.18" />
+                  <Stop offset="85%" stopColor="#FDE68A" stopOpacity="0.22" />
+                  <Stop offset="100%" stopColor="#FEF3C7" stopOpacity="0.15" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#beachSkyGrad)" />
+            </Svg>
+
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 30,
+                right: -20,
+                width: 160,
+                height: 160,
+                borderRadius: 80,
+                backgroundColor: '#F59E0B',
+                opacity: 0.12,
+                transform: [{ scale: animationsEnabled ? sunPulse : 1 }],
               }}
             />
           </View>

@@ -35,12 +35,12 @@ IMD's Mausam app currently shows the same generic layout to every user. Differen
 - Provide a clear "Custom" personalization path during onboarding for users who want complete control over their layout.
 - Ship a working, judge-demoable build on real IMD/Open-Meteo/INCOIS data.
 
-## 4. Non-Goals (out of scope for MVP)
+## 4. Scope Boundaries
 
 - Native OS home-screen widgets (iOS WidgetKit / Android App Widgets) — this is an **in-app** personalized homepage screen, not a device home-screen widget, unless time allows as a stretch goal.
 - Flight-specific live data (actual flight numbers/gate info) — travelers persona uses destination-city alerts, not real aviation data.
-- Multi-language localization — mentioned as a nice-to-have, not MVP.
-- Monetization/ads — not applicable, this is a government app.
+- Multi-language localization — **Delivered** in app via the Bhasha Engine (English, Hindi, Hinglish, Marathi, Bengali, Tamil, Telugu).
+- Monetization/ads — strictly out of scope, this is a public utility app.
 
 ## 5. Target Users & User Stories
 
@@ -90,6 +90,22 @@ For each persona, representative user stories:
 ### FR8 — Offline Behavior
 - Cache the last successfully fetched forecast/AQI/alerts per saved location.
 - If offline, show cached data with a clear "last updated" timestamp rather than a blank/broken screen.
+
+### FR9 — Interactive Weather Companion ("Mimi — मौसम साथी")
+- 100% vector SVG animated character perched on the homepage hero and accessible across tabs.
+- Multi-dimensional reactive engine responding to weather conditions (rain, sun, wind, thunder, snow, fog), time of day, inactivity tiers, and direct user actions.
+- Touch interaction progression: single tap (greeting/perk up), rapid taps (playful dizziness), long press (petting/purr), treat giving (snack feeding).
+- Deep Sleep Mode: Tier 5 inactivity (120s+) or late-night (1 AM – 6 AM) equips an embroidered silk sleeping eye mask (curved dual-lobe cushion, nose notch, elastic band, golden eyelashes & crescent moon).
+- Single-Tap Awakening: A single tap instantly removes the mask, plays a yawn/stretch animation, speaks a morning/wake remark, and fully awakens Mimi to normal alertness.
+- 100% offline, deterministic rule engine with zero chatbot latency.
+
+### FR10 — Multilingual Bhasha Engine
+- First-class support for 7 languages: English, Hindi (हिंदी), Hinglish (हिंग्लिश), Marathi (मराठी), Bengali (বাংলা), Tamil (தமிழ்), and Telugu (తెలుగు).
+- Seamless instant switching without reloading, persisted in local storage.
+
+### FR11 — Custom Theme Studio & Curated Aesthetic Themes
+- 11 distinct handcrafted visual themes: Apple Liquid (glassmorphic), Retro 2D Peaceful, Health, Fitness, Beach, Travel, Parent, Agriculture, Commuter, Event, and Custom.
+- Interactive Theme Studio allowing customization of background gradients, card opacity, blur intensity, corner radius, and accent colors with live real-time preview.
 
 ## 7. Non-Functional Requirements
 

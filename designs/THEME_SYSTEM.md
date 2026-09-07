@@ -61,3 +61,19 @@ The default themes defined in the system are:
 *   **Agriculture**: Earthy, rugged, practical, high legibility.
 *   **Commuter**: Utilitarian, fast, neon accents on dark backgrounds for transit.
 *   **Event**: Elegant, calendar-like, sophisticated.
+
+---
+
+## Production Implementation & Refinements
+
+### 1. Permanent Elimination of Android Elevation Artifact
+On Android, applying `elevation > 0` to translucent view backgrounds (`rgba(...)`) causes Android's hardware render layer (`ViewOutlineProvider`) to composite an opaque white backing tile behind child views.
+* **Standard Enforced**: All translucent and frosted glass cards in `Apple Liquid` and translucent custom themes strictly enforce `elevation: 0`.
+* Depth is established via crisp specular outline highlights (`borderWidth: 1`, `borderColor: 'rgba(255,255,255,0.85)'`) and soft platform box shadows.
+
+### 2. Custom Theme Studio (`components/theme/ThemeStudioModal.tsx`)
+In addition to the 11 static registry themes, users can create and save personalized themes dynamically:
+* Real-time preview of card corner radii (0px, 8px, 16px, 24px, 32px).
+* Custom primary and surface color pickers with hex validation.
+* Card border style controls (clean hairline, bold 2px comic outline, or soft glow).
+* Saved themes persist in `useCustomThemeStore.ts` and appear in the global Theme Selector.

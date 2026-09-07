@@ -19,6 +19,7 @@ import { SUPPORTED_LOCALES, SupportedLocale } from '../../lib/i18n';
 import { useAnimationStore } from '../../store/useAnimationStore';
 import { triggerLocalWeatherAlert } from '../../lib/notificationService';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import { useCompanionStore } from '../../store/useCompanionStore';
 
 export default function MeScreen() {
   const router = useRouter();
@@ -40,6 +41,11 @@ export default function MeScreen() {
   const { activeThemeId, layout } = useLayoutStore();
   const { locale, setLocale, t } = useLocaleStore();
   const { animationsEnabled, setAnimationsEnabled } = useAnimationStore();
+  const companionEnabled = useCompanionStore((state) => state.isEnabled);
+  const pettedCount = useCompanionStore((state) => state.pettedCount);
+  const treatsGiven = useCompanionStore((state) => state.treatsGiven);
+  const affinityLevel = useCompanionStore((state) => state.affinityLevel);
+  const setCompanionEnabled = useCompanionStore((state) => state.setEnabled);
 
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('C');
@@ -911,6 +917,52 @@ export default function MeScreen() {
               }}
             />
           </View>
+        </Card>
+
+        {/* COMPANION MASCOT SECTION */}
+        <Typography
+          variant="caption"
+          color={theme.colors.textSecondary}
+          style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8 }}
+        >
+          Weather Companion (Mimi)
+        </Typography>
+        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>Companion Mascot</Typography>
+              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={2}>
+                A living weather cat that observes forecasts, celebrates updates, and reacts to your touch.
+              </Typography>
+            </View>
+            <TouchableOpacity
+              onPress={() => setCompanionEnabled(!companionEnabled)}
+              activeOpacity={0.7}
+              style={{
+                paddingVertical: 5,
+                paddingHorizontal: 12,
+                borderRadius: theme.shapes.borderRadius.s,
+                backgroundColor: companionEnabled ? theme.colors.primary : theme.colors.surfaceSecondary,
+              }}
+            >
+              <Typography variant="caption" color={companionEnabled ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+                {companionEnabled ? 'Enabled' : 'Disabled'}
+              </Typography>
+            </TouchableOpacity>
+          </View>
+
+          {companionEnabled && (
+            <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
+                  Bonding Level: <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '800' }}>Lv.{Math.floor(affinityLevel / 10)}</Typography>
+                </Typography>
+                <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
+                  🐾 {pettedCount} pets &bull; 🐟 {treatsGiven} treats
+                </Typography>
+              </View>
+            </View>
+          )}
         </Card>
 
         {/* SECTION 5: ABOUT & MAITHIL STUDIOS */}

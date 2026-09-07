@@ -201,3 +201,54 @@ Because IMD API approval/whitelisting is the single biggest schedule risk:
 - Open-Meteo: free, no key, no practical rate limit for this scale.
 - IMD: free but requires registration and possibly IP whitelisting — start this in Part 1 of the build plan.
 - INCOIS: free, public data pages — may require light scraping/parsing rather than a clean REST API.
+
+---
+
+## 10. Interactive Weather Companion Architecture ("Mimi")
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    useCompanionStore (Zustand)                  │
+│                                                                 │
+│  State: pose, expression, accessory, currentRemark, stats       │
+│  Ticks: Heartbeat (3s), Gaze (4s), Inactivity Tiers (1-5)       │
+└────────────────┬────────────────────────────────┬───────────────┘
+                 │                                │
+                 ▼                                ▼
+┌─────────────────────────────────┐  ┌────────────────────────────┐
+│      companionBrain (/lib)      │  │     MausamCatSvg (/ui)     │
+│                                 │  │                            │
+│ - 5-Level Priority Engine       │  │ - 100% Vector SVG Rig      │
+│ - Condition & Time Mapping      │  │ - Anatomical Parametric    │
+│ - Sleep Mode (Silk Eye Mask)    │  │ - Animated Breathing/Tail  │
+│ - Instant Single-Tap Wake Engine│  │ - 21 Expression/Pose Combi │
+│ - 21 Remark Catalogs + History  │  │                            │
+└─────────────────────────────────┘  └────────────────────────────┘
+```
+
+- **Rig**: Zero raster assets. Rendered using `react-native-svg` (`MausamCatSvg.tsx`) with animated eye tracking, tail swish, and parametric weather accessories.
+- **Deep Sleep**: Inactivity Tier 5 ($\ge 120$s) or late-night (1:00 AM – 6:00 AM) auto-equips the silk sleeping eye mask (`accessory: 'eye_mask'`).
+- **Awakening**: Single tap (`priorityScore: 70`) clears the mask, triggers stretch-yawn, plays wake speech, and returns Mimi to active state without intermediate delays.
+- **Priority Engine**:
+  1. Priority 1 (Base Resting): Idle, breathing, blinking, sleeping eye mask.
+  2. Priority 2 (Time & Inactivity): Morning stretches, drowsy naps, deep sleep.
+  3. Priority 3 (Live Weather Events): Rain umbrella, sunshine shades, snow scarf, thunderstorm huddle.
+  4. Priority 4 (App Lifecycle): Pull-to-refresh cheers, tab changes, location switches.
+  5. Priority 5 (Direct User Touches): Single tap (66), rapid multi-tap dizzy (68), single-tap wake (70), petting purr (75), treat feeding (80).
+
+---
+
+## 11. Bhasha Localization Architecture (`/store/useLocaleStore.ts`, `/lib/i18n.ts`)
+
+- **Supported Locales**: `en` (English), `hi` (Hindi), `hinglish` (Hinglish), `mr` (Marathi), `bn` (Bengali), `ta` (Tamil), `te` (Telugu).
+- **Storage**: AsyncStorage-backed persistent locale selection with fallback to system locale.
+- **Translation Map**: Key-path dictionary lookup with parameterized interpolation (`t('key', { param })`). Covers all navigation tabs, weather states, widget labels, and companion remarks.
+
+---
+
+## 12. Custom Theme Engine Architecture (`/theme/`, `/store/useCustomThemeStore.ts`)
+
+- **Decoupled Architecture**: Persona dictates information relevance; theme dictates styling tokens (`MausamTheme`).
+- **Android Rendering Fix**: Cards strictly utilize `elevation: 0` paired with explicit border strokes to eliminate the default Android white background rectangle artifact on translucent/transparent surfaces.
+- **Theme Studio**: Dynamic real-time parameter tweaking for gradient backgrounds, glass blur, card alpha, border curvature, and typography accents with instantaneous live preview.
+- **Preset Registry**: 11 production themes (`appleLiquid`, `retroPeaceful`, `health`, `fitness`, `beach`, `travel`, `parent`, `agriculture`, `commuter`, `event`, `custom`).

@@ -19,6 +19,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useWidgetData } from '../../components/widgets/useWidgetData';
 import { getAlertsForLocation, WeatherAlert } from '../../lib/alertService';
 import { processSevereAlerts } from '../../lib/notificationService';
+import { companionEvents } from '../../lib/companion/companionEvents';
+import { useCompanionStore } from '../../store/useCompanionStore';
 
 export default function Home() {
   const router = useRouter();
@@ -67,6 +69,33 @@ export default function Home() {
       cancelled = true;
     };
   }, [defaultLoc]);
+
+  // Notify companion of app entry and screen focus
+  useEffect(() => {
+    companionEvents.emit('app_opened', undefined);
+    companionEvents.emit('screen_focused', { screenName: 'home' });
+  }, []);
+
+  // Alert companion of severe weather conditions
+  useEffect(() => {
+    if (severeAlert) {
+      companionEvents.emit('severe_alert_triggered', {
+        title: severeAlert.title,
+        severity: (severeAlert.severity as any) || 'orange',
+      });
+    }
+  }, [severeAlert]);
+
+  const handleManualRefresh = async () => {
+    useCompanionStore.getState().incrementRefreshCount();
+    companionEvents.emit('weather_refresh_started', undefined);
+    try {
+      await refresh();
+      companionEvents.emit('weather_refresh_success', {});
+    } catch {
+      companionEvents.emit('weather_refresh_failed', {});
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -181,7 +210,7 @@ export default function Home() {
                 {isOffline ? t('offlineBanner') : t('revalidatingBanner')}
               </Typography>
             </View>
-            <TouchableOpacity onPress={refresh} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>
+            <TouchableOpacity onPress={handleManualRefresh} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>
               <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
                 {t('refresh')}
               </Typography>

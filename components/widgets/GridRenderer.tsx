@@ -26,6 +26,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { Typography } from '../ui/Typography';
 import { Icon } from '../ui/Icon';
+import { companionEvents } from '../../lib/companion/companionEvents';
+import { useCompanionStore } from '../../store/useCompanionStore';
 
 const WIDGET_MAP: Record<string, React.FC<any>> = {
   current_summary: CurrentSummaryWidget,
@@ -174,6 +176,18 @@ export function GridRenderer({ isCustomizing, headerComponent }: GridRendererPro
     );
   };
 
+  const lastScrollEmit = React.useRef(0);
+  const handleScroll = (e: any) => {
+    const now = Date.now();
+    if (now - lastScrollEmit.current > 1500) {
+      lastScrollEmit.current = now;
+      companionEvents.emit('user_scrolled', {
+        offsetY: e.nativeEvent?.contentOffset?.y ?? 0,
+      });
+      useCompanionStore.getState().resetInactivity();
+    }
+  };
+
   if (isCustomizing) {
     return (
       <DraggableFlatList
@@ -188,12 +202,19 @@ export function GridRenderer({ isCustomizing, headerComponent }: GridRendererPro
         containerStyle={{ flex: 1, padding: theme.spacing.m }}
         showsVerticalScrollIndicator={false}
         ListFooterComponent={<View style={{ height: 120 }} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={160}
       />
     );
   }
 
   return (
-    <ScrollView style={{ flex: 1, padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={{ flex: 1, padding: theme.spacing.m }}
+      showsVerticalScrollIndicator={false}
+      onScroll={handleScroll}
+      scrollEventThrottle={160}
+    >
       {headerComponent}
       {displayLayout.map((item) => {
         const WidgetComponent = WIDGET_MAP[item.type];
