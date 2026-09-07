@@ -104,7 +104,7 @@ export default function Alerts() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: theme.spacing.m }}
+        contentContainerStyle={{ padding: theme.spacing.m, paddingBottom: 110 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         showsVerticalScrollIndicator={false}
       >

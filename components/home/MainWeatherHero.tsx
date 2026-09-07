@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import { Typography } from '../ui/Typography';
 import { Icon, IconName } from '../ui/Icon';
 import { Card } from '../ui/Card';
@@ -19,12 +19,73 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
   const { data: weather, loading, error, refresh } = useWidgetData<CurrentSummaryData>('current_summary');
   const { data: aqi } = useWidgetData<AqiData>('aqi_card');
 
+  // Apple-grade organic physics animations (React 19 safe)
+  const [floatAnim] = useState(() => new Animated.Value(0));
+  const [haloAnim] = useState(() => new Animated.Value(1));
+  const [haloOpacity] = useState(() => new Animated.Value(0.8));
+
+  useEffect(() => {
+    // Gentle floating hover animation for the weather centerpiece
+    const floatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -6,
+          duration: 2400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2400,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Continuous pulsing halo for live telemetry badge
+    const pulseLoop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(haloAnim, {
+            toValue: 2.2,
+            duration: 1800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(haloAnim, {
+            toValue: 1,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(haloOpacity, {
+            toValue: 0,
+            duration: 1800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(haloOpacity, {
+            toValue: 0.8,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    );
+
+    floatLoop.start();
+    pulseLoop.start();
+
+    return () => {
+      floatLoop.stop();
+      pulseLoop.stop();
+    };
+  }, [floatAnim, haloAnim, haloOpacity]);
+
   if (loading && !weather) {
     return (
       <Card
         style={{
           marginHorizontal: 0,
-          marginVertical: theme.spacing.s,
+          marginBottom: 12,
           padding: theme.spacing.l,
           minHeight: 160,
           justifyContent: 'center',
@@ -44,7 +105,7 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
       <Card
         style={{
           marginHorizontal: 0,
-          marginVertical: theme.spacing.s,
+          marginBottom: 12,
           padding: theme.spacing.m,
         }}
       >
@@ -91,21 +152,14 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
     <Card
       style={{
         marginHorizontal: 0,
-        marginTop: theme.spacing.xs,
-        marginBottom: theme.spacing.m,
+        marginTop: 0,
+        marginBottom: 12,
         padding: theme.spacing.l,
         borderRadius: theme.shapes.borderRadius.l,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        shadowColor: theme.isDark ? theme.colors.border : '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-        elevation: theme.artDirection?.cardStyle === 'glass' ? 0 : 3,
       }}
     >
-      {/* Top Bar: Location Label & Live Badge */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      {/* Top Header: Location Name & Live Badge */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={onPressLocation}
@@ -113,18 +167,18 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
         >
           <View
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
+              width: 28,
+              height: 28,
+              borderRadius: 14,
               backgroundColor: theme.colors.surfaceSecondary,
               justifyContent: 'center',
               alignItems: 'center',
-              marginRight: 6,
+              marginRight: 8,
             }}
           >
-            <Icon name="map-pin" size={13} color={theme.colors.primary} />
+            <Icon name="map-pin" size={14} color={theme.colors.primary} />
           </View>
-          <Typography variant="h3" numberOfLines={1} style={{ fontWeight: '800', flexShrink: 1 }}>
+          <Typography variant="h3" numberOfLines={1} style={{ fontWeight: '800', fontSize: 18, flexShrink: 1, letterSpacing: -0.3 }}>
             {locationName}
           </Typography>
           <View style={{ marginLeft: 4 }}>
@@ -136,103 +190,198 @@ export function MainWeatherHero({ locationName, onPressLocation }: Props) {
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 10,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 12,
             backgroundColor: theme.colors.surfaceSecondary,
           }}
         >
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: theme.colors.success,
-              marginRight: 5,
-            }}
-          />
-          <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 10 }}>
+          {/* Animated Pulsing Halo Dot */}
+          <View style={{ width: 10, height: 10, justifyContent: 'center', alignItems: 'center', marginRight: 6 }}>
+            <Animated.View
+              style={{
+                position: 'absolute',
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: theme.colors.success,
+                transform: [{ scale: haloAnim }],
+                opacity: haloOpacity,
+              }}
+            />
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: theme.colors.success,
+              }}
+            />
+          </View>
+          <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '800', fontSize: 11, letterSpacing: 0.5 }}>
             {t('liveBadge')}
           </Typography>
         </View>
       </View>
 
-      {/* Main Temperature & Condition Row */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
+      {/* Main Temperature & Art Centerpiece */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          {/* Hero Temperature */}
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            <Typography variant="h1" style={{ fontSize: 56, fontWeight: '800', lineHeight: 62, letterSpacing: -1 }}>
+            <Typography
+              variant="h1"
+              style={{
+                fontSize: 78,
+                fontWeight: '700',
+                lineHeight: 82,
+                letterSpacing: -2.5,
+                color: theme.colors.text,
+              }}
+            >
               {temp}
             </Typography>
-            <Typography variant="h2" color={theme.colors.primary} style={{ fontSize: 28, marginTop: 4, fontWeight: '600' }}>
-              °C
+            <Typography
+              variant="h2"
+              color={theme.colors.primary}
+              style={{
+                fontSize: 34,
+                fontWeight: '400',
+                marginTop: 6,
+                marginLeft: 2,
+              }}
+            >
+              °
             </Typography>
           </View>
 
-          <Typography variant="bodyMedium" numberOfLines={2} style={{ fontWeight: '700', marginTop: 2 }}>
+          {/* Condition Title */}
+          <Typography
+            variant="bodyMedium"
+            numberOfLines={1}
+            style={{
+              fontWeight: '700',
+              fontSize: 18,
+              marginTop: 4,
+              color: theme.colors.text,
+              letterSpacing: -0.2,
+            }}
+          >
             {desc}
           </Typography>
 
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 4, fontWeight: '600' }}>
-            {t('highShort')}: {high}° &bull; {t('lowShort')}: {low}° &bull; {t('feelsLike')} {feelsLike}°C
-          </Typography>
+          {/* High / Low Glass Pill */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginTop: 8,
+              alignSelf: 'flex-start',
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 10,
+              backgroundColor: theme.colors.surfaceSecondary,
+            }}
+          >
+            <Typography variant="caption" color={theme.colors.text} style={{ fontWeight: '700', fontSize: 12 }}>
+              H: {high}° &bull; L: {low}°
+            </Typography>
+            <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', fontSize: 12, marginLeft: 6 }}>
+              {t('feelsLike')} {feelsLike}°
+            </Typography>
+          </View>
         </View>
 
-        <View
+        {/* Hero Weather Icon Art with Subtle Floating Hover */}
+        <Animated.View
           style={{
-            width: 80,
-            height: 80,
-            borderRadius: 40,
+            width: 96,
+            height: 96,
+            borderRadius: 48,
             backgroundColor: theme.colors.surfaceSecondary,
             alignItems: 'center',
             justifyContent: 'center',
+            shadowColor: theme.colors.primary,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            elevation: 0,
+            transform: [{ translateY: floatAnim }],
           }}
         >
-          <Icon name={icon} size={44} color={theme.colors.primary} />
-        </View>
+          <Icon name={icon} size={54} color={theme.colors.primary} />
+        </Animated.View>
       </View>
 
-      {/* Atmospheric Quick Telemetry Bar */}
+      {/* Atmospheric Micro-Telemetry Chips */}
       <View
         style={{
           flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: theme.spacing.m,
-          paddingTop: theme.spacing.m,
+          flexWrap: 'wrap',
+          gap: 8,
+          marginTop: 18,
+          paddingTop: 14,
           borderTopWidth: 1,
           borderTopColor: theme.colors.border,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginRight: 8 }}>
-          <Icon name="droplet" size={14} color={theme.colors.primary} />
-          <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginLeft: 5, fontWeight: '600' }}>
-            {humidity}% {t('humidityLabel')}
+        {/* Humidity Chip */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            borderRadius: 10,
+            backgroundColor: theme.colors.surfaceSecondary,
+          }}
+        >
+          <Icon name="droplet" size={13} color={theme.colors.primary} />
+          <Typography variant="caption" color={theme.colors.text} style={{ marginLeft: 5, fontWeight: '700', fontSize: 11 }}>
+            {humidity}% <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '500', fontSize: 11 }}>{t('humidityLabel')}</Typography>
           </Typography>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginRight: 8 }}>
-          <Icon name="wind" size={14} color={theme.colors.primary} />
-          <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginLeft: 5, fontWeight: '600' }}>
-            {windSpeed} km/h {windDir}
+        {/* Wind Speed Chip */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            borderRadius: 10,
+            backgroundColor: theme.colors.surfaceSecondary,
+          }}
+        >
+          <Icon name="wind" size={13} color={theme.colors.primary} />
+          <Typography variant="caption" color={theme.colors.text} style={{ marginLeft: 5, fontWeight: '700', fontSize: 11 }}>
+            {windSpeed} km/h <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '500', fontSize: 11 }}>{windDir}</Typography>
           </Typography>
         </View>
 
+        {/* AQI Pill */}
         {aqi && (
           <View
             style={{
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              borderRadius: 10,
               backgroundColor: aqiBg,
             }}
           >
-            <Typography
-              variant="caption"
-              color={aqiTextColor}
-              style={{ fontWeight: '700', fontSize: 11 }}
-            >
-              {t('aqiLabel')} {aqi.aqi}
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: aqiTextColor,
+                marginRight: 5,
+              }}
+            />
+            <Typography variant="caption" color={aqiTextColor} style={{ fontWeight: '800', fontSize: 11 }}>
+              {t('aqiLabel')} {aqi.aqi} &bull; {aqi.status}
             </Typography>
           </View>
         )}

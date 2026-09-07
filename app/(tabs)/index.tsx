@@ -14,7 +14,6 @@ import { WeatherAtmosphere } from '../../components/ui/WeatherAtmosphere';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLayoutStore } from '../../store/useLayoutStore';
 import { useLocationStore } from '../../store/useLocationStore';
-import { useAnimationStore } from '../../store/useAnimationStore';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useWidgetData } from '../../components/widgets/useWidgetData';
@@ -29,7 +28,6 @@ export default function Home() {
   const _locale = useLocaleStore((state) => state.locale);
   void _locale;
   const t = useLocaleStore((state) => state.t);
-  const { animationsEnabled, toggleAnimations } = useAnimationStore();
 
   const locations = useLocationStore((state) => state.locations);
   const defaultLoc = locations.find((l) => l.isDefault) || locations[0];
@@ -89,75 +87,66 @@ export default function Home() {
                 {isCustomizing ? t('customizingLayout') : t('appName')}
               </Typography>
 
-              {!isCustomizing && (
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/locations')}
-                  style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}
-                >
-                  <Icon name="map-pin" size={13} color={theme.colors.primary} />
-                  <Typography
-                    variant="caption"
-                    color={theme.colors.textSecondary}
-                    numberOfLines={1}
-                    style={{ marginLeft: 4, fontWeight: '600', flexShrink: 1 }}
-                  >
-                    {defaultLoc?.label || t('selectPrimaryLocation')}
-                  </Typography>
-                  <View style={{ marginLeft: 4 }}>
-                    <Icon name="chevron-right" size={11} color={theme.colors.textSecondary} />
-                  </View>
-                </TouchableOpacity>
-              )}
+              <Typography
+                variant="caption"
+                color={theme.colors.textSecondary}
+                numberOfLines={1}
+                style={{ marginTop: 2, fontWeight: '600', flexShrink: 1 }}
+              >
+                {isCustomizing ? t('customizingDesc') : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+              </Typography>
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 0 }}>
               {!isCustomizing && (
                 <TouchableOpacity
                   activeOpacity={0.75}
-                  onPress={toggleAnimations}
+                  onPress={() => setRadarVisible(true)}
                   style={{
-                    flexDirection: 'row',
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
                     alignItems: 'center',
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: theme.shapes.borderRadius.s,
-                    backgroundColor: animationsEnabled ? theme.colors.surfaceSecondary : theme.colors.border,
+                    justifyContent: 'center',
+                    backgroundColor: theme.colors.surfaceSecondary,
                     marginRight: 8,
                   }}
+                  accessibilityLabel={t('radarMap')}
                 >
-                  <Icon name={animationsEnabled ? 'pause' : 'play'} size={12} color={theme.colors.primary} />
-                  <Typography variant="caption" color={theme.colors.primary} style={{ marginLeft: 4, fontWeight: '700' }}>
-                    {animationsEnabled ? t('motion') : t('static')}
-                  </Typography>
+                  <Icon name="radar" size={16} color={theme.colors.primary} />
                 </TouchableOpacity>
               )}
 
               {isCustomizing ? (
-                <Button
-                  title={t('done')}
-                  variant="primary"
+                <TouchableOpacity
+                  activeOpacity={0.8}
                   onPress={() => setIsCustomizing(false)}
-                  style={{ paddingVertical: 6, paddingHorizontal: 16 }}
-                />
+                  style={{
+                    paddingVertical: 7,
+                    paddingHorizontal: 16,
+                    borderRadius: 16,
+                    backgroundColor: theme.colors.primary,
+                  }}
+                >
+                  <Typography variant="caption" color={theme.colors.onPrimary || '#fff'} style={{ fontWeight: '800', fontSize: 12 }}>
+                    {t('done')}
+                  </Typography>
+                </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   activeOpacity={0.75}
                   onPress={() => setIsCustomizing(true)}
                   style={{
-                    flexDirection: 'row',
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
                     alignItems: 'center',
-                    gap: 5,
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: theme.shapes.borderRadius.s,
+                    justifyContent: 'center',
                     backgroundColor: theme.colors.surfaceSecondary,
                   }}
+                  accessibilityLabel={t('customize')}
                 >
-                  <Icon name="sliders" size={14} color={theme.colors.primary} />
-                  <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
-                    {t('customize')}
-                  </Typography>
+                  <Icon name="sliders" size={16} color={theme.colors.primary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -245,81 +234,18 @@ export default function Home() {
         <GridRenderer
           isCustomizing={isCustomizing}
           headerComponent={
-            <View style={{ marginBottom: 4 }}>
+            <View style={{ marginBottom: 0 }}>
               {/* The ONE Main Weather Hero */}
               <MainWeatherHero
                 locationName={defaultLoc?.label || t('selectPrimaryLocation')}
                 onPressLocation={() => router.push('/locations')}
               />
 
-              {/* Interactive Live Radar & Satellite Map Card */}
-              {!isCustomizing && (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setRadarVisible(true)}
-                  style={{
-                    marginBottom: theme.spacing.m,
-                    padding: 12,
-                    borderRadius: theme.shapes.borderRadius.m,
-                    backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
-                    borderWidth: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                    elevation: 2,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, paddingRight: 8 }}>
-                    <View
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
-                        backgroundColor: theme.colors.surfaceSecondary,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        marginRight: 10,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Icon name="radar" size={20} color={theme.colors.primary} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '700' }}>
-                        {t('radarCardTitle')}
-                      </Typography>
-                      <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginTop: 2 }}>
-                        {t('radarCardSubtitle')}
-                      </Typography>
-                    </View>
-                  </View>
-
-                  <View
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 12,
-                      backgroundColor: theme.colors.primary,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Typography variant="caption" numberOfLines={1} color={theme.colors.onPrimary || '#fff'} style={{ fontWeight: '700', fontSize: 11 }}>
-                      {t('viewRadar')}
-                    </Typography>
-                  </View>
-                </TouchableOpacity>
-              )}
-
               {/* Theme Picker and Add Widget drawer in Customization Mode */}
               {isCustomizing && (
                 <View
                   style={{
-                    marginBottom: theme.spacing.m,
+                    marginBottom: 12,
                     padding: theme.spacing.m,
                     backgroundColor: theme.colors.surface,
                     borderRadius: theme.shapes.borderRadius.m,
@@ -333,34 +259,32 @@ export default function Home() {
                     variant="outline"
                     onPress={() => setLibraryVisible(true)}
                   />
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: 12,
+                      paddingTop: 8,
+                      borderTopWidth: 1,
+                      borderTopColor: theme.colors.border,
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color={theme.colors.textSecondary}
+                      style={{ fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}
+                    >
+                      {t('customizableWidgets')}
+                    </Typography>
+                    <TouchableOpacity onPress={() => setLibraryVisible(true)}>
+                      <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+                        {t('addMore')}
+                      </Typography>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
-
-              {/* Section Header for Widgets */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 8,
-                  paddingHorizontal: 2,
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  color={theme.colors.textSecondary}
-                  style={{ fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}
-                >
-                  {isCustomizing ? t('customizableWidgets') : t('widgetsAndForecasts')}
-                </Typography>
-                {isCustomizing && (
-                  <TouchableOpacity onPress={() => setLibraryVisible(true)}>
-                    <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
-                      {t('addMore')}
-                    </Typography>
-                  </TouchableOpacity>
-                )}
-              </View>
             </View>
           }
         />

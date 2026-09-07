@@ -137,7 +137,7 @@ export default function Locations() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <WeatherAtmosphere weatherType="clear" />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={{ marginBottom: theme.spacing.m }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Animated } from 'react-native';
 import { WidgetCard, WidgetProps } from './WidgetCard';
 import { useWidgetData } from './useWidgetData';
 import { Typography } from '../ui/Typography';
@@ -394,6 +394,35 @@ export function SchoolCommuteWidget({ id, isCustomizing, onRemove }: WidgetProps
   );
 }
 
+function AnimatedPrecipBar({ prob, color, borderColor, index }: { prob: number; color: string; borderColor: string; index: number }) {
+  const [heightAnim] = React.useState(() => new Animated.Value(4));
+  const targetHeight = Math.max(8, prob * 0.55);
+
+  React.useEffect(() => {
+    Animated.sequence([
+      Animated.delay(index * 60),
+      Animated.spring(heightAnim, {
+        toValue: targetHeight,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [targetHeight, heightAnim, index]);
+
+  return (
+    <Animated.View
+      style={{
+        width: 14,
+        height: heightAnim,
+        backgroundColor: prob > 20 ? color : borderColor,
+        borderRadius: 4,
+        marginVertical: 4,
+      }}
+    />
+  );
+}
+
 export function RainTimelineWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('rain_timeline', 'default');
   const theme = useTheme();
@@ -413,22 +442,19 @@ export function RainTimelineWidget({ id, isCustomizing, onRemove }: WidgetProps)
           <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginBottom: 8 }}>
             {data.summary}
           </Typography>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', minHeight: 70 }}>
             {data.timeline?.map((slot: any, i: number) => (
               <View key={i} style={{ alignItems: 'center' }}>
                 <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
                   {slot.time}
                 </Typography>
-                <View
-                  style={{
-                    width: 14,
-                    height: Math.max(8, slot.prob * 0.5),
-                    backgroundColor: slot.prob > 20 ? theme.colors.primary : theme.colors.border,
-                    borderRadius: 3,
-                    marginVertical: 4,
-                  }}
+                <AnimatedPrecipBar
+                  prob={slot.prob}
+                  color={theme.colors.primary}
+                  borderColor={theme.colors.border}
+                  index={i}
                 />
-                <Typography variant="caption" style={{ fontSize: 10, fontWeight: '600' }}>
+                <Typography variant="caption" style={{ fontSize: 10, fontWeight: '700' }}>
                   {slot.prob}%
                 </Typography>
               </View>

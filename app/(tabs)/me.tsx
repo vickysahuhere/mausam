@@ -268,7 +268,7 @@ export default function MeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.m, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* Screen Title */}
         <Typography variant="h1" style={{ fontWeight: '800', marginBottom: theme.spacing.m }}>
           Me

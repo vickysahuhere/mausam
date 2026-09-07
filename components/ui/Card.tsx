@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, ViewProps, ViewStyle, StyleSheet, Platform } from 'react-native';
+import { View, ViewProps, ViewStyle } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { GlassView } from 'expo-glass-effect';
 
 interface CardProps extends ViewProps {
   variant?: 'default' | 'elevated' | 'outlined' | 'subtle';
@@ -11,7 +10,15 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
   const theme = useTheme();
   const { artDirection, colors, shapes, spacing, cards } = theme;
 
+  const isGlass = artDirection?.cardStyle === 'glass';
+  const isTranslucent = colors.surface.startsWith('rgba') || (colors.surface.startsWith('#') && colors.surface.length > 7);
+
   const getCardStyle = (): ViewStyle => {
+    // Critical: Android's hardware renderer (ViewOutlineProvider) draws an opaque
+    // white/gray rectangular tile behind translucent surfaces when elevation > 0.
+    // Glass and translucent surfaces must always have elevation: 0.
+    const safeElevation = (isGlass || isTranslucent) ? 0 : cards.elevation;
+
     const base: ViewStyle = {
       backgroundColor: colors.surface,
       borderRadius: shapes.borderRadius.l,
@@ -22,7 +29,7 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
       shadowOffset: artDirection?.shadowOffset || { width: 0, height: 2 },
       shadowOpacity: cards.shadowOpacity,
       shadowRadius: artDirection?.cardStyle === 'flat2d' ? 0 : shapes.borderRadius.m,
-      elevation: cards.elevation,
+      elevation: safeElevation,
     };
 
     switch (artDirection?.cardStyle) {
@@ -31,12 +38,12 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
           ...base,
           backgroundColor: colors.surface,
           borderColor: colors.border,
-          borderWidth: 1.5,
+          borderWidth: 1,
           borderRadius: shapes.borderRadius.l,
-          shadowColor: '#0F172A',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.12,
-          shadowRadius: 20,
+          shadowColor: '#0284C7',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.08,
+          shadowRadius: 16,
           elevation: 0,
         };
 
@@ -56,6 +63,7 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
           borderWidth: 1.5,
           shadowColor: colors.primary,
           shadowOpacity: 0.15,
+          elevation: 0,
         };
 
       case 'pebble':
@@ -94,7 +102,7 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
     }
   };
 
-  if (artDirection?.cardStyle === 'glass') {
+  if (isGlass) {
     return (
       <View
         style={[
@@ -102,34 +110,20 @@ export function Card({ style, variant = 'default', ...props }: CardProps) {
           style,
           {
             position: 'relative',
-            overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
-            elevation: 0,
+            overflow: 'hidden',
           },
         ]}
         {...props}
       >
-        {Platform.OS === 'ios' && (
-          <GlassView
-            glassEffectStyle="regular"
-            tintColor="rgba(255, 255, 255, 0.45)"
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                borderRadius: shapes.borderRadius.l,
-              },
-            ]}
-            pointerEvents="none"
-          />
-        )}
-        {/* Specular Inner Light Reflection Header (Figma Glassmorphism design) */}
+        {/* Specular Inner Light Reflection Header (Apple Liquid Glassmorphism) */}
         <View
           style={{
             position: 'absolute',
             top: 0,
-            left: 20,
-            right: 20,
+            left: 16,
+            right: 16,
             height: 1.5,
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            backgroundColor: 'rgba(255, 255, 255, 0.75)',
             borderRadius: 1,
           }}
           pointerEvents="none"

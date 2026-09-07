@@ -39,7 +39,7 @@ export function WidgetCard({
   const displayTitle = t(title);
 
   return (
-    <Card style={{ marginBottom: theme.spacing.m, position: 'relative' }}>
+    <Card style={{ marginBottom: 12, position: 'relative' }}>
       <View
         style={{
           flexDirection: 'row',

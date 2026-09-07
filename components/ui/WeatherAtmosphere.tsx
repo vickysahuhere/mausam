@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Animated, StyleSheet, Dimensions } from 'react-native';
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { useAnimationStore } from '../../store/useAnimationStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -106,60 +107,53 @@ export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
     >
       {/* Atmosphere Background Elements */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {/* Glassmorphism Radiant Mesh Glow Orbs (Figma Glassmorphism Design) */}
+        {/* Fluid Atmospheric Sky Gradient for Apple Liquid & Glass themes */}
         {(theme.artDirection?.cardStyle === 'glass' || theme.id === 'apple-liquid') ? (
-          <>
-            {/* Top-Right Radiant Cyan/Sky Orb */}
-            <Animated.View
-              style={[
-                styles.glassOrb,
-                {
-                  top: -40,
-                  right: -50,
-                  width: 300,
-                  height: 300,
-                  borderRadius: 150,
-                  backgroundColor: '#38BDF8',
-                  opacity: 0.38,
-                  transform: [{ scale: animationsEnabled ? sunPulse : 1 }],
-                },
-              ]}
-            />
+          <View style={StyleSheet.absoluteFill}>
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+              <Defs>
+                <LinearGradient id="appleSkyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor={theme.isDark ? '#0B192C' : '#7DD3FC'} stopOpacity="0.55" />
+                  <Stop offset="35%" stopColor={theme.isDark ? '#1E3E62' : '#BAE6FD'} stopOpacity="0.38" />
+                  <Stop offset="75%" stopColor={theme.isDark ? '#0F172A' : '#E0F2FE'} stopOpacity="0.25" />
+                  <Stop offset="100%" stopColor={theme.isDark ? '#020617' : '#F0F9FF'} stopOpacity="0.12" />
+                </LinearGradient>
+                <RadialGradient id="sunAtmosphereGlow" cx="80%" cy="15%" r="60%" fx="80%" fy="15%">
+                  <Stop offset="0%" stopColor={theme.isDark ? '#38BDF8' : '#38BDF8'} stopOpacity="0.35" />
+                  <Stop offset="50%" stopColor={theme.isDark ? '#818CF8' : '#818CF8'} stopOpacity="0.15" />
+                  <Stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
+                </RadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#appleSkyGrad)" />
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#sunAtmosphereGlow)" />
+            </Svg>
 
-            {/* Mid-Left Electric Indigo/Violet Orb */}
+            {/* Apple Weather Style Dynamic Drifting Atmospheric Cloud Layers */}
             <Animated.View
-              style={[
-                styles.glassOrb,
-                {
-                  top: 220,
-                  left: -80,
-                  width: 320,
-                  height: 320,
-                  borderRadius: 160,
-                  backgroundColor: '#818CF8',
-                  opacity: 0.32,
-                  transform: [{ translateX: animationsEnabled ? cloud1 : 0 }],
-                },
-              ]}
+              style={{
+                position: 'absolute',
+                top: 50,
+                left: -60,
+                width: width * 0.9,
+                height: 120,
+                borderRadius: 60,
+                backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                transform: [{ translateX: animationsEnabled ? cloud1 : 0 }],
+              }}
             />
-
-            {/* Lower-Right Sunset Rose/Amber Orb */}
             <Animated.View
-              style={[
-                styles.glassOrb,
-                {
-                  top: 500,
-                  right: -60,
-                  width: 280,
-                  height: 280,
-                  borderRadius: 140,
-                  backgroundColor: '#F472B6',
-                  opacity: 0.28,
-                  transform: [{ translateX: animationsEnabled ? cloud2 : 0 }],
-                },
-              ]}
+              style={{
+                position: 'absolute',
+                top: 220,
+                right: -70,
+                width: width * 0.8,
+                height: 100,
+                borderRadius: 50,
+                backgroundColor: 'rgba(255, 255, 255, 0.16)',
+                transform: [{ translateX: animationsEnabled ? cloud2 : 0 }],
+              }}
             />
-          </>
+          </View>
         ) : (
           <>
             {/* Soft Sun/Glow orb */}
