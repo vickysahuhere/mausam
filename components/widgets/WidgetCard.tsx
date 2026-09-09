@@ -53,8 +53,19 @@ export function WidgetCard({
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, minWidth: 0, marginRight: 8 }}>
           {iconName && (
-            <View style={{ marginRight: 6, flexShrink: 0 }}>
-              <Icon name={iconName} size={16} color={theme.colors.primary} />
+            <View
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 7,
+                backgroundColor: theme.colors.primary + (theme.isDark ? '24' : '14'),
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 8,
+                flexShrink: 0,
+              }}
+            >
+              <Icon name={iconName} size={13} color={theme.colors.primary} />
             </View>
           )}
           <Typography
@@ -62,7 +73,7 @@ export function WidgetCard({
             color={theme.colors.textSecondary}
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={{ fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase', flexShrink: 1 }}
+            style={{ fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11, flexShrink: 1 }}
           >
             {displayTitle}
           </Typography>
@@ -72,15 +83,15 @@ export function WidgetCard({
           {badge && !isCustomizing && (
             <View
               style={{
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                borderRadius: theme.artDirection?.badgeStyle === 'square' ? 2 : 12,
-                backgroundColor: theme.colors.surfaceSecondary,
+                paddingHorizontal: 9,
+                paddingVertical: 2.5,
+                borderRadius: theme.artDirection?.badgeStyle === 'square' ? 3 : 10,
+                backgroundColor: theme.colors.primary + (theme.isDark ? '20' : '12'),
                 borderWidth: theme.artDirection?.badgeStyle === 'outline' ? 1 : 0,
                 borderColor: theme.colors.primary,
               }}
             >
-              <Typography variant="caption" color={theme.colors.primary} style={{ fontSize: 11, fontWeight: '600' }}>
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontSize: 10.5, fontWeight: '800', letterSpacing: 0.2 }}>
                 {badge}
               </Typography>
             </View>

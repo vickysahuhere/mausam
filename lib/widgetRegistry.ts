@@ -31,6 +31,26 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     defaultSize: 'large',
   },
 
+  // 24-Hour Continuous Hourly Timeline
+  hourly_forecast: {
+    id: 'hourly_forecast',
+    name: 'Hourly Forecast',
+    description: '24-hour horizontal forecast timeline with rain chances and temperature trend',
+    category: 'Essential',
+    icon: 'clock',
+    relevance: {
+      health: 0.85,
+      fitness: 0.85,
+      beach: 0.85,
+      travel: 0.85,
+      parent: 0.85,
+      agriculture: 0.85,
+      commuter: 0.85,
+      event: 0.85,
+    },
+    defaultSize: 'large',
+  },
+
   // Health
   aqi_card: {
     id: 'aqi_card',
@@ -181,5 +201,41 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     category: 'Planning',
     icon: 'thermometer',
     relevance: { event: 0.9, health: 0.7, fitness: 0.6 },
+  },
+  secondary_locations: {
+    id: 'secondary_locations',
+    name: 'Secondary Locations',
+    description: 'Live weather and conditions for your saved places (School, Work, Home)',
+    category: 'Essential',
+    icon: 'map-pin',
+    relevance: {
+      commuter: 1.0,
+      parent: 1.0,
+      travel: 1.0,
+      health: 0.8,
+      fitness: 0.8,
+      beach: 0.8,
+      agriculture: 0.8,
+      event: 0.8,
+    },
+    defaultSize: 'large',
+  },
+  companion_card: {
+    id: 'companion_card',
+    name: 'Weather Companion',
+    description: 'Interactive weather cat providing live micro-advice and reactions',
+    category: 'Essential',
+    icon: 'sun',
+    relevance: {
+      health: 0.9,
+      fitness: 0.9,
+      beach: 0.9,
+      travel: 0.9,
+      parent: 0.9,
+      agriculture: 0.9,
+      commuter: 0.9,
+      event: 0.9,
+    },
+    defaultSize: 'medium',
   },
 };

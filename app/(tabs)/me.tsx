@@ -20,6 +20,8 @@ import { useAnimationStore } from '../../store/useAnimationStore';
 import { triggerLocalWeatherAlert } from '../../lib/notificationService';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { useCompanionStore } from '../../store/useCompanionStore';
+import { useUnitStore } from '../../store/useUnitStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function MeScreen() {
   const router = useRouter();
@@ -32,36 +34,51 @@ export default function MeScreen() {
     signOut,
     signInWithPassword,
     signUpWithPassword,
-    verifyOtp,
     checkVerificationStatus,
     resendVerificationEmail,
+    requestPasswordReset,
+    confirmPasswordReset,
     updateFullName,
+    reset: resetAuth,
   } = useAuthStore();
   const { locations } = useLocationStore();
   const { activeThemeId, layout } = useLayoutStore();
   const { locale, setLocale, t } = useLocaleStore();
   const { animationsEnabled, setAnimationsEnabled } = useAnimationStore();
   const companionEnabled = useCompanionStore((state) => state.isEnabled);
+  const soundEnabled = useCompanionStore((state) => state.soundEnabled);
+  const reactionsEnabled = useCompanionStore((state) => state.reactionsEnabled);
+  const setSoundEnabled = useCompanionStore((state) => state.setSoundEnabled);
+  const setReactionsEnabled = useCompanionStore((state) => state.setReactionsEnabled);
   const pettedCount = useCompanionStore((state) => state.pettedCount);
   const treatsGiven = useCompanionStore((state) => state.treatsGiven);
   const affinityLevel = useCompanionStore((state) => state.affinityLevel);
   const setCompanionEnabled = useCompanionStore((state) => state.setEnabled);
 
   const [themePickerOpen, setThemePickerOpen] = useState(false);
-  const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('C');
-  const [windUnit, setWindUnit] = useState<'km/h' | 'm/s'>('km/h');
+  const {
+    temperatureUnit,
+    setTemperatureUnit,
+    windSpeedUnit: windUnit,
+    setWindSpeedUnit: setWindUnit,
+  } = useUnitStore();
 
   // Cloud Auth & Sync state
   const [showAuthForm, setShowAuthForm] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'reset'>('signin');
   const [authFullName, setAuthFullName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [meAwaitingVerification, setMeAwaitingVerification] = useState(false);
-  const [meOtpCode, setMeOtpCode] = useState('');
   const [syncing, setSyncing] = useState(false);
+
+  // Password Reset State
+  const [authResetStage, setAuthResetStage] = useState<'request' | 'confirm'>('request');
+  const [authResetCode, setAuthResetCode] = useState('');
+  const [authNewPassword, setAuthNewPassword] = useState('');
+  const [authResetSuccessMsg, setAuthResetSuccessMsg] = useState<string | null>(null);
 
   // Name Editing State
   const [isEditingName, setIsEditingName] = useState(false);
@@ -98,11 +115,16 @@ export default function MeScreen() {
 
   const handleOpenUrl = async (url: string, label: string) => {
     try {
-      const supported = await Linking.canOpenURL(url);
+      const trimmed = (url || '').trim();
+      if (!trimmed.startsWith('https://') && !trimmed.startsWith('http://')) {
+        Alert.alert('Security Warning', `Cannot open untrusted link scheme: ${url}`);
+        return;
+      }
+      const supported = await Linking.canOpenURL(trimmed);
       if (supported) {
-        await Linking.openURL(url);
+        await Linking.openURL(trimmed);
       } else {
-        Alert.alert('Unable to Open Link', `Could not open ${label}. Please visit: ${url}`);
+        Alert.alert('Unable to Open Link', `Could not open ${label}. Please visit: ${trimmed}`);
       }
     } catch {
       Alert.alert('Unable to Open Link', `Could not open ${label}. Please visit: ${url}`);
@@ -134,6 +156,32 @@ export default function MeScreen() {
           style: 'destructive',
           onPress: async () => {
             await signOut();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetAppToBeginning = () => {
+    Alert.alert(
+      'Restart From Very Beginning?',
+      'This will reset your onboarding progress, survey answers, custom layout, and saved locations so you can experience Mausam from the very start.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset & Restart',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              resetAuth();
+              useLocationStore.getState().reset();
+              useLayoutStore.getState().reset();
+              await AsyncStorage.clear();
+            } catch (e) {
+              console.warn('App reset error:', e);
+            }
+            router.replace('/onboarding');
           },
         },
       ]
@@ -191,34 +239,6 @@ export default function MeScreen() {
     }
   };
 
-  const handleMeVerifyOtp = async () => {
-    const trimmed = meOtpCode.trim();
-    if (!trimmed || trimmed.length < 6) {
-      setAuthError('Please enter the 6-digit confirmation code.');
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const res = await verifyOtp(authEmail.trim(), trimmed);
-      if (res.success) {
-        setMeAwaitingVerification(false);
-        setShowAuthForm(false);
-        setAuthEmail('');
-        setAuthPassword('');
-        setAuthFullName('');
-        setMeOtpCode('');
-        Alert.alert('Email Confirmed!', 'Your account has been verified and synced with Supabase.');
-      } else {
-        setAuthError(res.error || 'Invalid or expired confirmation code.');
-      }
-    } catch (err: any) {
-      setAuthError(err?.message || 'Verification failed.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleMeCheckLink = async () => {
     setAuthLoading(true);
     setAuthError(null);
@@ -230,10 +250,9 @@ export default function MeScreen() {
         setAuthEmail('');
         setAuthPassword('');
         setAuthFullName('');
-        setMeOtpCode('');
         Alert.alert('Welcome!', 'Your email is confirmed and your account is active.');
       } else {
-        setAuthError('Email not verified yet. Please tap the link in your email or enter the 6-digit code.');
+        setAuthError('Email not verified yet. Please tap the confirmation link in your email.');
       }
     } catch (err: any) {
       setAuthError(err?.message || 'Verification check failed.');
@@ -253,6 +272,64 @@ export default function MeScreen() {
       }
     } catch (err: any) {
       setAuthError(err?.message || 'Failed to resend email.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleMeRequestReset = async () => {
+    setAuthError(null);
+    setAuthResetSuccessMsg(null);
+    const email = authEmail.trim();
+    if (!email || !email.includes('@')) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await requestPasswordReset(email);
+      if (res.success) {
+        setAuthResetStage('confirm');
+        setAuthResetSuccessMsg('Recovery code sent! Check your inbox or use 123456 in demo mode.');
+      } else {
+        setAuthError(res.error || 'Failed to send recovery code.');
+      }
+    } catch (e: any) {
+      setAuthError(e?.message || 'Error sending recovery code.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleMeConfirmReset = async () => {
+    setAuthError(null);
+    setAuthResetSuccessMsg(null);
+    const email = authEmail.trim();
+    const code = authResetCode.trim();
+    if (!code || code.length < 6) {
+      setAuthError('Please enter the 6-digit recovery code.');
+      return;
+    }
+    if (!authNewPassword || authNewPassword.length < 6) {
+      setAuthError('New password must be at least 6 characters.');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await confirmPasswordReset(email, code, authNewPassword);
+      if (res.success) {
+        Alert.alert('Password Updated', 'Your password has been reset successfully and you are now signed in.');
+        setShowAuthForm(false);
+        setAuthMode('signin');
+        setAuthResetStage('request');
+        setAuthResetCode('');
+        setAuthNewPassword('');
+        setAuthResetSuccessMsg(null);
+      } else {
+        setAuthError(res.error || 'Failed to reset password. Please check your recovery code.');
+      }
+    } catch (e: any) {
+      setAuthError(e?.message || 'Error resetting password.');
     } finally {
       setAuthLoading(false);
     }
@@ -280,16 +357,15 @@ export default function MeScreen() {
           Me
         </Typography>
 
-        {/* SECTION 1: PROFILE */}
         {/* SECTION 1: PROFILE & CLOUD ACCOUNT */}
-        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+        <Card style={{ marginBottom: theme.spacing.m, padding: 16, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: theme.colors.surfaceSecondary,
+                width: 50,
+                height: 50,
+                borderRadius: 16,
+                backgroundColor: theme.colors.primary + '18',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginRight: 14,
@@ -319,7 +395,7 @@ export default function MeScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <Typography variant="caption" color={theme.colors.textSecondary}>
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
                 {hasSession && user
                   ? `${user.email || 'Registered User'} • Cloud Synced`
                   : 'Local device session • No cloud backup'}
@@ -492,10 +568,10 @@ export default function MeScreen() {
                     <View>
                       <View style={{ alignItems: 'center', marginBottom: 12 }}>
                         <Typography variant="bodyMedium" style={{ fontWeight: '700', textAlign: 'center' }}>
-                          Confirm Your Email
+                          Verify Your Email
                         </Typography>
                         <Typography variant="caption" color={theme.colors.textSecondary} style={{ textAlign: 'center', marginTop: 4 }}>
-                          Code & link sent to {authEmail}
+                          We sent a verification link to {authEmail}. Please check your inbox and tap the link to confirm your account.
                         </Typography>
                       </View>
 
@@ -505,40 +581,9 @@ export default function MeScreen() {
                         </Typography>
                       )}
 
-                      <TextInput
-                        value={meOtpCode}
-                        onChangeText={setMeOtpCode}
-                        placeholder="123456"
-                        placeholderTextColor={theme.colors.textSecondary}
-                        keyboardType="number-pad"
-                        maxLength={8}
-                        style={{
-                          backgroundColor: theme.colors.surface,
-                          borderRadius: 6,
-                          borderWidth: 1,
-                          borderColor: theme.colors.border,
-                          paddingHorizontal: 10,
-                          paddingVertical: 8,
-                          fontSize: 16,
-                          fontWeight: '700',
-                          color: theme.colors.text,
-                          textAlign: 'center',
-                          letterSpacing: 4,
-                          marginBottom: 8,
-                        }}
-                      />
-
-                      <Button
-                        title={authLoading ? 'Verifying...' : 'Verify Code'}
-                        variant="primary"
-                        disabled={authLoading || meOtpCode.trim().length < 6}
-                        onPress={handleMeVerifyOtp}
-                        style={{ marginBottom: 6 }}
-                      />
-
                       <Button
                         title={authLoading ? 'Checking...' : "I've Clicked Email Link"}
-                        variant="outline"
+                        variant="primary"
                         disabled={authLoading}
                         onPress={handleMeCheckLink}
                         style={{ marginBottom: 8 }}
@@ -547,7 +592,7 @@ export default function MeScreen() {
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <TouchableOpacity onPress={handleMeResend} disabled={authLoading}>
                           <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
-                            Resend Email
+                            Resend Verification Link
                           </Typography>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => { setMeAwaitingVerification(false); setAuthError(null); }}>
@@ -559,111 +604,255 @@ export default function MeScreen() {
                     </View>
                   ) : (
                     <>
-                      {/* Mode tabs */}
-                      <View style={{ flexDirection: 'row', marginBottom: 10, backgroundColor: theme.colors.surface, borderRadius: 6, padding: 2 }}>
-                        <TouchableOpacity
-                          onPress={() => { setAuthMode('signin'); setAuthError(null); }}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 6,
-                            alignItems: 'center',
-                            borderRadius: 4,
-                            backgroundColor: authMode === 'signin' ? theme.colors.surfaceSecondary : 'transparent',
-                          }}
-                        >
-                          <Typography variant="caption" style={{ fontWeight: authMode === 'signin' ? '700' : '500' }}>
-                            Sign In
-                          </Typography>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => { setAuthMode('signup'); setAuthError(null); }}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 6,
-                            alignItems: 'center',
-                            borderRadius: 4,
-                            backgroundColor: authMode === 'signup' ? theme.colors.surfaceSecondary : 'transparent',
-                          }}
-                        >
-                          <Typography variant="caption" style={{ fontWeight: authMode === 'signup' ? '700' : '500' }}>
-                            Create Account
-                          </Typography>
-                        </TouchableOpacity>
-                      </View>
+                      {authMode === 'reset' ? (
+                        <View>
+                          <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                            <Typography variant="bodyMedium" style={{ fontWeight: '700', textAlign: 'center' }}>
+                              Reset Cloud Password
+                            </Typography>
+                            <Typography variant="caption" color={theme.colors.textSecondary} style={{ textAlign: 'center', marginTop: 2 }}>
+                              {authResetStage === 'request'
+                                ? 'Enter your registered email to receive a recovery code.'
+                                : `Enter code sent to ${authEmail} and new password.`}
+                            </Typography>
+                          </View>
 
-                      {authError && (
-                        <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
-                          {authError}
-                        </Typography>
+                          {authError && (
+                            <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
+                              {authError}
+                            </Typography>
+                          )}
+
+                          {authResetSuccessMsg && (
+                            <Typography variant="caption" color={theme.colors.success} style={{ marginBottom: 8 }}>
+                              {authResetSuccessMsg}
+                            </Typography>
+                          )}
+
+                          {authResetStage === 'request' ? (
+                            <>
+                              <TextInput
+                                value={authEmail}
+                                onChangeText={setAuthEmail}
+                                placeholder="Email address"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                style={{
+                                  backgroundColor: theme.colors.surface,
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: theme.colors.border,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 8,
+                                  fontSize: 13,
+                                  color: theme.colors.text,
+                                  marginBottom: 10,
+                                }}
+                              />
+
+                              <Button
+                                title={authLoading ? 'Sending Code...' : 'Send Recovery Code'}
+                                variant="primary"
+                                disabled={authLoading}
+                                onPress={handleMeRequestReset}
+                                style={{ marginBottom: 8 }}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <TextInput
+                                value={authResetCode}
+                                onChangeText={setAuthResetCode}
+                                placeholder="123456"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                keyboardType="number-pad"
+                                maxLength={8}
+                                style={{
+                                  backgroundColor: theme.colors.surface,
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: theme.colors.border,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 8,
+                                  fontSize: 16,
+                                  fontWeight: '700',
+                                  color: theme.colors.text,
+                                  textAlign: 'center',
+                                  letterSpacing: 4,
+                                  marginBottom: 8,
+                                }}
+                              />
+
+                              <TextInput
+                                value={authNewPassword}
+                                onChangeText={setAuthNewPassword}
+                                placeholder="New password (min 6 chars)"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                secureTextEntry
+                                autoCapitalize="none"
+                                style={{
+                                  backgroundColor: theme.colors.surface,
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: theme.colors.border,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 8,
+                                  fontSize: 13,
+                                  color: theme.colors.text,
+                                  marginBottom: 10,
+                                }}
+                              />
+
+                              <Button
+                                title={authLoading ? 'Resetting...' : 'Reset & Sign In'}
+                                variant="primary"
+                                disabled={authLoading || authResetCode.trim().length < 6 || authNewPassword.length < 6}
+                                onPress={handleMeConfirmReset}
+                                style={{ marginBottom: 8 }}
+                              />
+                            </>
+                          )}
+
+                          <TouchableOpacity
+                            onPress={() => {
+                              setAuthMode('signin');
+                              setAuthError(null);
+                              setAuthResetSuccessMsg(null);
+                            }}
+                            style={{ alignItems: 'center', paddingVertical: 4 }}
+                          >
+                            <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                              Back to Sign In
+                            </Typography>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <>
+                          {/* Mode tabs */}
+                          <View style={{ flexDirection: 'row', marginBottom: 10, backgroundColor: theme.colors.surface, borderRadius: 6, padding: 2 }}>
+                            <TouchableOpacity
+                              onPress={() => { setAuthMode('signin'); setAuthError(null); }}
+                              style={{
+                                flex: 1,
+                                paddingVertical: 6,
+                                alignItems: 'center',
+                                borderRadius: 4,
+                                backgroundColor: authMode === 'signin' ? theme.colors.surfaceSecondary : 'transparent',
+                              }}
+                            >
+                              <Typography variant="caption" style={{ fontWeight: authMode === 'signin' ? '700' : '500' }}>
+                                Sign In
+                              </Typography>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => { setAuthMode('signup'); setAuthError(null); }}
+                              style={{
+                                flex: 1,
+                                paddingVertical: 6,
+                                alignItems: 'center',
+                                borderRadius: 4,
+                                backgroundColor: authMode === 'signup' ? theme.colors.surfaceSecondary : 'transparent',
+                              }}
+                            >
+                              <Typography variant="caption" style={{ fontWeight: authMode === 'signup' ? '700' : '500' }}>
+                                Create Account
+                              </Typography>
+                            </TouchableOpacity>
+                          </View>
+
+                          {authError && (
+                            <Typography variant="caption" color={theme.colors.error} style={{ marginBottom: 8 }}>
+                              {authError}
+                            </Typography>
+                          )}
+
+                          {authMode === 'signup' && (
+                            <TextInput
+                              value={authFullName}
+                              onChangeText={setAuthFullName}
+                              placeholder="Full Name (e.g. Vicky Sahu)"
+                              placeholderTextColor={theme.colors.textSecondary}
+                              autoCapitalize="words"
+                              style={{
+                                backgroundColor: theme.colors.surface,
+                                borderRadius: 6,
+                                borderWidth: 1,
+                                borderColor: theme.colors.border,
+                                paddingHorizontal: 10,
+                                paddingVertical: 8,
+                                fontSize: 13,
+                                color: theme.colors.text,
+                                marginBottom: 8,
+                              }}
+                            />
+                          )}
+
+                          <TextInput
+                            value={authEmail}
+                            onChangeText={setAuthEmail}
+                            placeholder="Email address"
+                            placeholderTextColor={theme.colors.textSecondary}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            style={{
+                              backgroundColor: theme.colors.surface,
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: theme.colors.border,
+                              paddingHorizontal: 10,
+                              paddingVertical: 8,
+                              fontSize: 13,
+                              color: theme.colors.text,
+                              marginBottom: 8,
+                            }}
+                          />
+
+                          <TextInput
+                            value={authPassword}
+                            onChangeText={setAuthPassword}
+                            placeholder={authMode === 'signup' ? 'Password (min 6 chars)' : 'Password'}
+                            placeholderTextColor={theme.colors.textSecondary}
+                            secureTextEntry
+                            autoCapitalize="none"
+                            style={{
+                              backgroundColor: theme.colors.surface,
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: theme.colors.border,
+                              paddingHorizontal: 10,
+                              paddingVertical: 8,
+                              fontSize: 13,
+                              color: theme.colors.text,
+                              marginBottom: 6,
+                            }}
+                          />
+
+                          {authMode === 'signin' && (
+                            <View style={{ alignItems: 'flex-end', marginBottom: 10 }}>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setAuthMode('reset');
+                                  setAuthResetStage('request');
+                                  setAuthError(null);
+                                  setAuthResetSuccessMsg(null);
+                                }}
+                              >
+                                <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                                  Forgot Password?
+                                </Typography>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+
+                          <Button
+                            title={authLoading ? 'Connecting...' : authMode === 'signin' ? 'Sign In & Sync' : 'Register & Sync'}
+                            variant="primary"
+                            disabled={authLoading}
+                            onPress={handleAuthSubmit}
+                          />
+                        </>
                       )}
-
-                      {authMode === 'signup' && (
-                        <TextInput
-                          value={authFullName}
-                          onChangeText={setAuthFullName}
-                          placeholder="Full Name (e.g. Vicky Sahu)"
-                          placeholderTextColor={theme.colors.textSecondary}
-                          autoCapitalize="words"
-                          style={{
-                            backgroundColor: theme.colors.surface,
-                            borderRadius: 6,
-                            borderWidth: 1,
-                            borderColor: theme.colors.border,
-                            paddingHorizontal: 10,
-                            paddingVertical: 8,
-                            fontSize: 13,
-                            color: theme.colors.text,
-                            marginBottom: 8,
-                          }}
-                        />
-                      )}
-
-                      <TextInput
-                        value={authEmail}
-                        onChangeText={setAuthEmail}
-                        placeholder="Email address"
-                        placeholderTextColor={theme.colors.textSecondary}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        style={{
-                          backgroundColor: theme.colors.surface,
-                          borderRadius: 6,
-                          borderWidth: 1,
-                          borderColor: theme.colors.border,
-                          paddingHorizontal: 10,
-                          paddingVertical: 8,
-                          fontSize: 13,
-                          color: theme.colors.text,
-                          marginBottom: 8,
-                        }}
-                      />
-
-                      <TextInput
-                        value={authPassword}
-                        onChangeText={setAuthPassword}
-                        placeholder={authMode === 'signup' ? 'Password (min 6 chars)' : 'Password'}
-                        placeholderTextColor={theme.colors.textSecondary}
-                        secureTextEntry
-                        autoCapitalize="none"
-                        style={{
-                          backgroundColor: theme.colors.surface,
-                          borderRadius: 6,
-                          borderWidth: 1,
-                          borderColor: theme.colors.border,
-                          paddingHorizontal: 10,
-                          paddingVertical: 8,
-                          fontSize: 13,
-                          color: theme.colors.text,
-                          marginBottom: 10,
-                        }}
-                      />
-
-                      <Button
-                        title={authLoading ? 'Connecting...' : authMode === 'signin' ? 'Sign In & Sync' : 'Register & Sync'}
-                        variant="primary"
-                        disabled={authLoading}
-                        onPress={handleAuthSubmit}
-                      />
                     </>
                   )}
                 </View>
@@ -673,10 +862,10 @@ export default function MeScreen() {
         </Card>
 
         {/* SECTION 2: PERSONALIZATION */}
-        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 }}>
+        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8, fontSize: 11 }}>
           Personalization & Themes
         </Typography>
-        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+        <Card style={{ marginBottom: theme.spacing.m, padding: 16, borderRadius: 16 }}>
           {/* Persona Display */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
             <View>
@@ -687,9 +876,9 @@ export default function MeScreen() {
             </View>
             <TouchableOpacity
               onPress={() => router.push('/onboarding/survey')}
-              style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: theme.shapes.borderRadius.s, backgroundColor: theme.colors.surfaceSecondary }}
+              style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.surfaceSecondary, borderWidth: 1, borderColor: theme.colors.border }}
             >
-              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
                 Retake Survey
               </Typography>
             </TouchableOpacity>
@@ -707,9 +896,9 @@ export default function MeScreen() {
             </View>
             <TouchableOpacity
               onPress={() => setThemePickerOpen(!themePickerOpen)}
-              style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: theme.shapes.borderRadius.s, backgroundColor: theme.colors.surfaceSecondary }}
+              style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.surfaceSecondary, borderWidth: 1, borderColor: theme.colors.border }}
             >
-              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
                 {themePickerOpen ? 'Hide Picker' : 'Change Theme'}
               </Typography>
             </TouchableOpacity>
@@ -734,9 +923,9 @@ export default function MeScreen() {
             </View>
             <TouchableOpacity
               onPress={() => router.push('/(tabs)')}
-              style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: theme.shapes.borderRadius.s, backgroundColor: theme.colors.surfaceSecondary }}
+              style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.surfaceSecondary, borderWidth: 1, borderColor: theme.colors.border }}
             >
-              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
                 Edit on Home
               </Typography>
             </TouchableOpacity>
@@ -744,22 +933,22 @@ export default function MeScreen() {
         </Card>
 
         {/* SECTION 3: LOCATIONS */}
-        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 }}>
+        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8, fontSize: 11 }}>
           Location Management
         </Typography>
-        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+        <Card style={{ marginBottom: theme.spacing.m, padding: 16, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
             <View>
               <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>Primary Location</Typography>
-              <Typography variant="caption" color={theme.colors.textSecondary}>
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
                 {defaultLoc ? defaultLoc.label : 'None set'}
               </Typography>
             </View>
             <TouchableOpacity
               onPress={() => router.push('/locations')}
-              style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: theme.shapes.borderRadius.s, backgroundColor: theme.colors.surfaceSecondary }}
+              style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.surfaceSecondary, borderWidth: 1, borderColor: theme.colors.border }}
             >
-              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
                 Manage ({locations.length})
               </Typography>
             </TouchableOpacity>
@@ -767,20 +956,22 @@ export default function MeScreen() {
         </Card>
 
         {/* SECTION 4: PREFERENCES */}
-        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 }}>
+        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8, fontSize: 11 }}>
           Weather Units & Preferences
         </Typography>
-        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+        <Card style={{ marginBottom: theme.spacing.m, padding: 16, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
             <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>Temperature Unit</Typography>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               <TouchableOpacity
                 onPress={() => setTemperatureUnit('C')}
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                  borderRadius: theme.shapes.borderRadius.s,
+                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
                   backgroundColor: temperatureUnit === 'C' ? theme.colors.primary : theme.colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: temperatureUnit === 'C' ? theme.colors.primary : theme.colors.border,
                 }}
               >
                 <Typography variant="caption" color={temperatureUnit === 'C' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
@@ -790,10 +981,12 @@ export default function MeScreen() {
               <TouchableOpacity
                 onPress={() => setTemperatureUnit('F')}
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                  borderRadius: theme.shapes.borderRadius.s,
+                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
                   backgroundColor: temperatureUnit === 'F' ? theme.colors.primary : theme.colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: temperatureUnit === 'F' ? theme.colors.primary : theme.colors.border,
                 }}
               >
                 <Typography variant="caption" color={temperatureUnit === 'F' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
@@ -811,10 +1004,12 @@ export default function MeScreen() {
               <TouchableOpacity
                 onPress={() => setWindUnit('km/h')}
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 8,
-                  borderRadius: theme.shapes.borderRadius.s,
+                  paddingVertical: 5,
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
                   backgroundColor: windUnit === 'km/h' ? theme.colors.primary : theme.colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: windUnit === 'km/h' ? theme.colors.primary : theme.colors.border,
                 }}
               >
                 <Typography variant="caption" color={windUnit === 'km/h' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
@@ -824,10 +1019,12 @@ export default function MeScreen() {
               <TouchableOpacity
                 onPress={() => setWindUnit('m/s')}
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 8,
-                  borderRadius: theme.shapes.borderRadius.s,
+                  paddingVertical: 5,
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
                   backgroundColor: windUnit === 'm/s' ? theme.colors.primary : theme.colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: windUnit === 'm/s' ? theme.colors.primary : theme.colors.border,
                 }}
               >
                 <Typography variant="caption" color={windUnit === 'm/s' ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
@@ -923,15 +1120,15 @@ export default function MeScreen() {
         <Typography
           variant="caption"
           color={theme.colors.textSecondary}
-          style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8 }}
+          style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8, fontSize: 11 }}
         >
           Weather Companion (Mimi)
         </Typography>
-        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+        <Card style={{ marginBottom: theme.spacing.m, padding: 16, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>Companion Mascot</Typography>
-              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={2}>
+              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={2} style={{ marginTop: 2 }}>
                 A living weather cat that observes forecasts, celebrates updates, and reacts to your touch.
               </Typography>
             </View>
@@ -941,11 +1138,13 @@ export default function MeScreen() {
               style={{
                 paddingVertical: 5,
                 paddingHorizontal: 12,
-                borderRadius: theme.shapes.borderRadius.s,
+                borderRadius: 8,
                 backgroundColor: companionEnabled ? theme.colors.primary : theme.colors.surfaceSecondary,
+                borderWidth: 1,
+                borderColor: companionEnabled ? theme.colors.primary : theme.colors.border,
               }}
             >
-              <Typography variant="caption" color={companionEnabled ? '#FFFFFF' : theme.colors.text} style={{ fontWeight: '700' }}>
+              <Typography variant="caption" color={companionEnabled ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
                 {companionEnabled ? 'Enabled' : 'Disabled'}
               </Typography>
             </TouchableOpacity>
@@ -961,6 +1160,60 @@ export default function MeScreen() {
                   🐾 {pettedCount} pets &bull; 🐟 {treatsGiven} treats
                 </Typography>
               </View>
+
+              <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 8 }} />
+
+              {/* Sound Toggle */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Typography variant="bodyMedium" style={{ fontWeight: '600', fontSize: 13 }}>Cat Audio & Purrs</Typography>
+                  <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
+                    Gentle synthesized meows and purrs on tap or bonding.
+                  </Typography>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setSoundEnabled(!soundEnabled)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    backgroundColor: soundEnabled ? theme.colors.primary : theme.colors.surfaceSecondary,
+                    borderWidth: 1,
+                    borderColor: soundEnabled ? theme.colors.primary : theme.colors.border,
+                  }}
+                >
+                  <Typography variant="caption" color={soundEnabled ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
+                    {soundEnabled ? 'ON' : 'OFF'}
+                  </Typography>
+                </TouchableOpacity>
+              </View>
+
+              {/* Reactions Toggle */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, marginTop: 4 }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Typography variant="bodyMedium" style={{ fontWeight: '600', fontSize: 13 }}>Weather Micro-Advice</Typography>
+                  <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
+                    Contextual advice bubbles for rain, UV, walk times, and alerts.
+                  </Typography>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setReactionsEnabled(!reactionsEnabled)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    backgroundColor: reactionsEnabled ? theme.colors.primary : theme.colors.surfaceSecondary,
+                    borderWidth: 1,
+                    borderColor: reactionsEnabled ? theme.colors.primary : theme.colors.border,
+                  }}
+                >
+                  <Typography variant="caption" color={reactionsEnabled ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
+                    {reactionsEnabled ? 'ON' : 'OFF'}
+                  </Typography>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </Card>
@@ -969,11 +1222,11 @@ export default function MeScreen() {
         <Typography
           variant="caption"
           color={theme.colors.textSecondary}
-          style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8 }}
+          style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8, fontSize: 11 }}
         >
           {t('aboutMausam')}
         </Typography>
-        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+        <Card style={{ marginBottom: theme.spacing.m, padding: 16, borderRadius: 16 }}>
           {/* Studio & Brand Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <View
@@ -1162,6 +1415,45 @@ export default function MeScreen() {
             </Typography>
             <Icon name="external-link" size={14} color={theme.colors.onPrimary || '#FFFFFF'} />
           </TouchableOpacity>
+        </Card>
+
+        {/* SECTION 6: APP DATA & RESTART ONBOARDING */}
+        <Typography
+          variant="caption"
+          color={theme.colors.textSecondary}
+          style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4, letterSpacing: 0.8 }}
+        >
+          Data & App State
+        </Typography>
+        <Card style={{ marginBottom: theme.spacing.m, padding: theme.spacing.m }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 12 }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: theme.colors.error + '18',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name="compass" size={20} color={theme.colors.error} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Typography variant="bodyMedium" style={{ fontWeight: '700' }}>
+                Restart From Beginning
+              </Typography>
+              <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
+                Clear local memory and restart the first-time onboarding flow, personalization survey, and setup.
+              </Typography>
+            </View>
+          </View>
+          <Button
+            title="Reset App & Start From Beginning"
+            variant="outline"
+            onPress={handleResetAppToBeginning}
+            style={{ borderColor: theme.colors.error }}
+          />
         </Card>
 
         <View style={{ height: 80 }} />

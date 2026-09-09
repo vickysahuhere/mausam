@@ -25,7 +25,7 @@ import { useCompanionStore } from '../../store/useCompanionStore';
 export default function Home() {
   const router = useRouter();
   const personaVector = useAuthStore((state) => state.personaVector);
-  const { initializeForUser } = useLayoutStore();
+  const initializeForUser = useLayoutStore((state) => state.initializeForUser);
   const theme = useTheme();
   const _locale = useLocaleStore((state) => state.locale);
   void _locale;
@@ -132,17 +132,19 @@ export default function Home() {
                   activeOpacity={0.75}
                   onPress={() => setRadarVisible(true)}
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor: theme.colors.surfaceSecondary,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
                     marginRight: 8,
                   }}
                   accessibilityLabel={t('radarMap')}
                 >
-                  <Icon name="radar" size={16} color={theme.colors.primary} />
+                  <Icon name="radar" size={17} color={theme.colors.primary} />
                 </TouchableOpacity>
               )}
 
@@ -151,13 +153,13 @@ export default function Home() {
                   activeOpacity={0.8}
                   onPress={() => setIsCustomizing(false)}
                   style={{
-                    paddingVertical: 7,
+                    paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 16,
+                    borderRadius: 14,
                     backgroundColor: theme.colors.primary,
                   }}
                 >
-                  <Typography variant="caption" color={theme.colors.onPrimary || '#fff'} style={{ fontWeight: '800', fontSize: 12 }}>
+                  <Typography variant="caption" color={theme.colors.onPrimary || '#fff'} style={{ fontWeight: '800', fontSize: 12, letterSpacing: 0.2 }}>
                     {t('done')}
                   </Typography>
                 </TouchableOpacity>
@@ -166,26 +168,22 @@ export default function Home() {
                   activeOpacity={0.75}
                   onPress={() => setIsCustomizing(true)}
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor: theme.colors.surfaceSecondary,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
                   }}
                   accessibilityLabel={t('customize')}
                 >
-                  <Icon name="sliders" size={16} color={theme.colors.primary} />
+                  <Icon name="sliders" size={17} color={theme.colors.primary} />
                 </TouchableOpacity>
               )}
             </View>
           </View>
-
-          {isCustomizing && (
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>
-              {t('customizingDesc')}
-            </Typography>
-          )}
         </View>
 
         {/* Offline / Stale Status Indicator */}

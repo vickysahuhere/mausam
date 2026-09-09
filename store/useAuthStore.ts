@@ -35,8 +35,15 @@ interface AuthState {
   checkVerificationStatus: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signInWithOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
   verifyOtp: (email: string, token: string) => Promise<{ success: boolean; error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
+  confirmPasswordReset: (
+    email: string,
+    token: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   restoreSession: () => Promise<void>;
+  reset: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -48,6 +55,16 @@ export const useAuthStore = create<AuthState>()(
       personaVector: null,
       surveyCompleted: false,
       isRestoringSession: false,
+
+      reset: () =>
+        set({
+          hasSession: false,
+          isGuest: false,
+          user: null,
+          personaVector: null,
+          surveyCompleted: false,
+          isRestoringSession: false,
+        }),
 
       setSession: (val, user = null) =>
         set({ hasSession: val, isGuest: !val, user: val ? user : null }),
@@ -207,11 +224,35 @@ export const useAuthStore = create<AuthState>()(
 
       signInWithOtp: async (email) => {
         try {
+          const trimmedEmail = email.trim();
+          if (!trimmedEmail || !trimmedEmail.includes('@')) {
+            return { success: false, error: 'Please enter a valid email address.' };
+          }
           if (!isSupabaseConfigured()) {
             return { success: true };
           }
-          const { error } = await supabase.auth.signInWithOtp({ email });
-          if (error) return { success: false, error: error.message };
+          const { error } = await supabase.auth.signInWithOtp({
+            email: trimmedEmail,
+            options: {
+              shouldCreateUser: false,
+            },
+          });
+          if (error) {
+            const isUnregistered =
+              (error as any).status === 422 ||
+              (error as any).code === 'otp_disabled' ||
+              error.message?.toLowerCase().includes('signups not allowed') ||
+              error.message?.toLowerCase().includes('signup disabled') ||
+              error.message?.toLowerCase().includes('user not found');
+
+            if (isUnregistered) {
+              return {
+                success: false,
+                error: "This email isn't registered. Please create an account first.",
+              };
+            }
+            return { success: false, error: error.message };
+          }
           return { success: true };
         } catch (e: any) {
           return { success: false, error: e?.message || 'OTP request failed' };
@@ -220,41 +261,124 @@ export const useAuthStore = create<AuthState>()(
 
       verifyOtp: async (email, token) => {
         try {
+          const trimmedEmail = email.trim();
+          const trimmedToken = token.trim();
+          if (!trimmedEmail || !trimmedToken) {
+            return { success: false, error: 'Email and verification code are required.' };
+          }
+
           if (!isSupabaseConfigured()) {
             const mockUser: AuthUser = {
-              id: `user-${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-              email,
+              id: `user-${trimmedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              email: trimmedEmail,
             };
             set({ hasSession: true, isGuest: false, user: mockUser });
             await syncFromCloud(mockUser.id);
             return { success: true };
           }
 
-          // 1. Try signup verification type
-          const { data, error } = await supabase.auth.verifyOtp({
-            email,
-            token,
+          // 1. Try email OTP verification first (standard for signInWithOtp)
+          const { data: dataEmail, error: errEmail } = await supabase.auth.verifyOtp({
+            email: trimmedEmail,
+            token: trimmedToken,
+            type: 'email',
+          });
+
+          if (!errEmail && dataEmail?.user) {
+            const authUser: AuthUser = {
+              id: dataEmail.user.id,
+              email: dataEmail.user.email,
+              fullName: dataEmail.user.user_metadata?.full_name,
+            };
+            set({ hasSession: true, isGuest: false, user: authUser });
+            await migrateGuestToAccount(dataEmail.user.id);
+            return { success: true };
+          }
+
+          // 2. Fallback: try signup verification type
+          const { data: dataSignup, error: errSignup } = await supabase.auth.verifyOtp({
+            email: trimmedEmail,
+            token: trimmedToken,
             type: 'signup',
           });
 
+          if (!errSignup && dataSignup?.user) {
+            const authUser: AuthUser = {
+              id: dataSignup.user.id,
+              email: dataSignup.user.email,
+              fullName: dataSignup.user.user_metadata?.full_name,
+            };
+            set({ hasSession: true, isGuest: false, user: authUser });
+            await migrateGuestToAccount(dataSignup.user.id);
+            return { success: true };
+          }
+
+          return {
+            success: false,
+            error: errEmail?.message || errSignup?.message || 'Verification failed. Invalid or expired code.',
+          };
+        } catch (e: any) {
+          return { success: false, error: e?.message || 'Verification error' };
+        }
+      },
+
+      requestPasswordReset: async (email: string) => {
+        try {
+          const trimmed = email.trim();
+          if (!trimmed || !trimmed.includes('@')) {
+            return { success: false, error: 'Please enter a valid email address.' };
+          }
+          if (!isSupabaseConfigured()) {
+            return { success: true };
+          }
+          const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
+          if (error) return { success: false, error: error.message };
+          return { success: true };
+        } catch (e: any) {
+          return { success: false, error: e?.message || 'Password reset request failed' };
+        }
+      },
+
+      confirmPasswordReset: async (email: string, token: string, newPassword: string) => {
+        try {
+          const trimmedEmail = email.trim();
+          const trimmedToken = token.trim();
+          if (!trimmedEmail || !trimmedToken) {
+            return { success: false, error: 'Email and recovery code are required.' };
+          }
+          if (!newPassword || newPassword.length < 6) {
+            return { success: false, error: 'New password must be at least 6 characters.' };
+          }
+
+          if (!isSupabaseConfigured()) {
+            // Mock recovery session
+            const mockUser: AuthUser = {
+              id: `user-${trimmedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              email: trimmedEmail,
+            };
+            set({ hasSession: true, isGuest: false, user: mockUser });
+            await syncFromCloud(mockUser.id);
+            return { success: true };
+          }
+
+          // 1. Verify the recovery token
+          const { data, error } = await supabase.auth.verifyOtp({
+            email: trimmedEmail,
+            token: trimmedToken,
+            type: 'recovery',
+          });
+
           if (error) {
-            // 2. Fallback: try email OTP verification
-            const { data: dataEmail, error: errEmail } = await supabase.auth.verifyOtp({
-              email,
-              token,
-              type: 'email',
-            });
-            if (errEmail) return { success: false, error: errEmail.message };
-            if (dataEmail.user) {
-              const authUser: AuthUser = {
-                id: dataEmail.user.id,
-                email: dataEmail.user.email,
-                fullName: dataEmail.user.user_metadata?.full_name,
-              };
-              set({ hasSession: true, isGuest: false, user: authUser });
-              await migrateGuestToAccount(dataEmail.user.id);
-              return { success: true };
-            }
+            return { success: false, error: error.message };
+          }
+
+          // 2. Update to the new password
+          const { error: updateError } = await supabase.auth.updateUser({
+            password: newPassword,
+          });
+
+          if (updateError) {
+            return { success: false, error: updateError.message };
           }
 
           if (data.user) {
@@ -267,9 +391,10 @@ export const useAuthStore = create<AuthState>()(
             await migrateGuestToAccount(data.user.id);
             return { success: true };
           }
-          return { success: false, error: 'Verification failed' };
+
+          return { success: true };
         } catch (e: any) {
-          return { success: false, error: e?.message || 'Verification error' };
+          return { success: false, error: e?.message || 'Failed to update password' };
         }
       },
 

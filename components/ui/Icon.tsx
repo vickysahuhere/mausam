@@ -37,6 +37,7 @@ export type IconName =
   | 'x'
   | 'plus'
   | 'trash'
+  | 'clock'
   | 'github'
   | 'external-link';
 
@@ -368,6 +369,14 @@ export function Icon({ name, size = 22, color = '#000000', strokeWidth = 2 }: Ic
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+        </Svg>
+      );
+
+    case 'clock':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={strokeWidth} />
+          <Polyline points="12 6 12 12 16 14" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
 

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Animated, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Animated, StyleSheet, Dimensions, AppState, AppStateStatus } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Polygon, G } from 'react-native-svg';
 import { useAnimationStore } from '../../store/useAnimationStore';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -11,18 +11,28 @@ interface Props {
   children?: React.ReactNode;
 }
 
-export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
+export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
   const theme = useTheme();
   const animationsEnabled = useAnimationStore((state) => state.animationsEnabled);
 
-  // Animation values initialized safely for React 19
-  const [cloud1] = useState(() => new Animated.Value(0));
-  const [cloud2] = useState(() => new Animated.Value(0));
-  const [sunPulse] = useState(() => new Animated.Value(1));
-  const [rainStreak] = useState(() => new Animated.Value(0));
+  // Lean animated values initialized via ref (zero re-render allocations)
+  const cloud1 = useRef(new Animated.Value(0)).current;
+  const cloud2 = useRef(new Animated.Value(0)).current;
+  const sunPulse = useRef(new Animated.Value(1)).current;
+  const rainStreak = useRef(new Animated.Value(0)).current;
+
+  // AppState awareness for battery and CPU preservation
+  const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
 
   useEffect(() => {
-    if (!animationsEnabled) {
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      setIsAppActive(state === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!animationsEnabled || !isAppActive) {
       // Freeze all animations
       cloud1.stopAnimation();
       cloud2.stopAnimation();
@@ -98,7 +108,7 @@ export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
       sunLoop.stop();
       rainLoop.stop();
     };
-  }, [animationsEnabled, cloud1, cloud2, sunPulse, rainStreak]);
+  }, [animationsEnabled, isAppActive, cloud1, cloud2, sunPulse, rainStreak]);
 
   return (
     <View
@@ -325,7 +335,7 @@ export function WeatherAtmosphere({ weatherType = 'clear', children }: Props) {
       {children}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -167,10 +167,12 @@ export default function Alerts() {
                 onPress={() => setSeverityFilter(filterKey)}
                 style={{
                   flex: 1,
-                  paddingVertical: 6,
-                  borderRadius: 8,
+                  paddingVertical: 7,
+                  borderRadius: 10,
                   alignItems: 'center',
                   backgroundColor: isSelected ? theme.colors.primary : theme.colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: isSelected ? theme.colors.primary : theme.colors.border,
                 }}
               >
                 <Typography
@@ -178,8 +180,8 @@ export default function Alerts() {
                   numberOfLines={1}
                   style={{
                     color: isSelected ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text,
-                    fontWeight: isSelected ? '700' : '500',
-                    fontSize: 10,
+                    fontWeight: isSelected ? '800' : '600',
+                    fontSize: 11,
                   }}
                 >
                   {label}
@@ -257,25 +259,46 @@ export default function Alerts() {
               key={alert.id}
               style={{
                 marginBottom: theme.spacing.m,
-                padding: theme.spacing.m,
-                borderLeftWidth: 5,
+                padding: 16,
+                borderLeftWidth: 4,
                 borderLeftColor: sevColor,
+                borderRadius: 16,
               }}
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Icon name="alert-triangle" size={16} color={sevColor} />
-                  <Typography
-                    variant="caption"
-                    color={sevColor}
-                    style={{ fontWeight: '800', marginLeft: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      backgroundColor: sevColor + '18',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
                   >
-                    {alert.severity} &bull; {alert.agency}
-                  </Typography>
+                    <Icon name="alert-triangle" size={14} color={sevColor} />
+                  </View>
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 2.5,
+                      borderRadius: 6,
+                      backgroundColor: sevColor + '18',
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color={sevColor}
+                      style={{ fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, fontSize: 10 }}
+                    >
+                      {alert.severity} &bull; {alert.agency}
+                    </Typography>
+                  </View>
                 </View>
               </View>
 
-              <Typography variant="h3" numberOfLines={2} style={{ fontWeight: '800', marginBottom: 4 }}>
+              <Typography variant="h3" numberOfLines={2} style={{ fontWeight: '800', marginBottom: 4, fontSize: 16, lineHeight: 22 }}>
                 {alert.title}
               </Typography>
 
@@ -290,16 +313,18 @@ export default function Alerts() {
               {alert.instructions ? (
                 <View
                   style={{
-                    marginTop: 4,
-                    padding: 8,
-                    borderRadius: theme.shapes.borderRadius.s,
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 10,
                     backgroundColor: theme.colors.surfaceSecondary,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
                   }}
                 >
-                  <Typography variant="caption" style={{ fontWeight: '700', marginBottom: 2 }}>
+                  <Typography variant="caption" style={{ fontWeight: '800', marginBottom: 3, letterSpacing: 0.2 }}>
                     {t('safetyInstructions')}:
                   </Typography>
-                  <Typography variant="caption" color={theme.colors.textSecondary} style={{ lineHeight: 16 }}>
+                  <Typography variant="caption" color={theme.colors.textSecondary} style={{ lineHeight: 17 }}>
                     {alert.instructions}
                   </Typography>
                 </View>

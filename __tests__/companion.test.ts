@@ -214,12 +214,164 @@ test('Companion Store: Inactivity tiers and multi-touch wake progression', async
   for (let i = 0; i < 60; i++) store.incrementInactivity();
   assert.equal(useCompanionStore.getState().inactivityTier, 5, '121s should reach Tier 5 (Deep Sleep)');
 
-  // In deep sleep (Tier 5), a single tap wakes Mimi up completely!
+  // In deep sleep (Tier 5), tapping Mimi starts intentional multi-stage wake progression
   store.tapCat();
-  const awake = useCompanionStore.getState();
-  assert.equal(awake.inactivityTier, 1, 'Inactivity should reset to Tier 1 on wake');
-  assert.equal(awake.currentState.pose, 'stretch_yawn');
-  assert.equal(awake.currentState.expression, 'happy');
-  assert.equal(awake.currentState.accessory, 'none', 'Eye mask should be removed on wake');
-  assert.ok(awake.currentState.speechText, 'Should say wake-up remark');
+  const waking = useCompanionStore.getState();
+  assert.equal(waking.inactivityTier, 1, 'Inactivity should reset to Tier 1 on wake');
+  assert.equal(waking.isWaking, true, 'Cat should be in isWaking state during wake sequence');
+  assert.equal(waking.currentState.pose, 'sit', 'Stage 1 wake pose should be sit');
+  assert.equal(waking.currentState.expression, 'sleepy', 'Stage 1 wake expression should be sleepy');
+  assert.equal(waking.currentState.accessory, 'none', 'Eye mask should be removed on wake');
+  assert.strictEqual(waking.currentState.speechText, null, 'Should NOT show speech while waking');
 });
+
+test('Cat State Engine: Weather, time & alert reaction evaluation', () => {
+  const { CatStateEngine } = require('../lib/cat/catStateEngine');
+
+  // Storm evaluation
+  const stormMood = CatStateEngine.evaluateMood({ weather: { isThunder: true } });
+  assert.equal(stormMood, 'stormy');
+  const stormVisuals = CatStateEngine.mapToVisuals('stormy', 'seeking_shelter');
+  assert.equal(stormVisuals.expression, 'startled');
+  assert.equal(stormVisuals.pose, 'duck_hide');
+
+  // Rain evaluation
+  const rainMood = CatStateEngine.evaluateMood({ weather: { isRain: true } });
+  assert.equal(rainMood, 'rainy');
+
+  // Heat & Cold evaluation
+  const hotMood = CatStateEngine.evaluateMood({ weather: { temp: 39 } });
+  assert.equal(hotMood, 'hot');
+  const coldMood = CatStateEngine.evaluateMood({ weather: { temp: 4 } });
+  assert.equal(coldMood, 'cold');
+
+  // Air quality sick-air evaluation
+  const aqiMood = CatStateEngine.evaluateMood({ weather: { aqi: 250 } });
+  assert.equal(aqiMood, 'sick-air');
+
+  // Alert priority reaction
+  const alertReaction = CatStateEngine.computeEnvironmentReaction({
+    activeAlert: { id: 'alert_123', title: 'Cyclone Warning', severity: 'red' },
+  });
+  assert.equal(alertReaction.priority, 'CRITICAL');
+  assert.equal(alertReaction.priorityScore, 100);
+  assert.ok(alertReaction.message?.text.includes('Cyclone Warning'));
+});
+
+test('Cat Sound Manager: Cooldown debounce and preference controls', async () => {
+  const { catSoundManager } = require('../lib/cat/catSoundManager');
+
+  catSoundManager.resetCooldown();
+  await catSoundManager.setSoundEnabled(true);
+  assert.equal(catSoundManager.getSoundEnabled(), true);
+
+  let soundsPlayed: string[] = [];
+  const unregister = catSoundManager.registerBridge((sound) => {
+    soundsPlayed.push(sound);
+  });
+
+  // First sound should play
+  const played1 = catSoundManager.playMeow();
+  assert.equal(played1, true);
+  assert.equal(soundsPlayed.length, 1);
+  assert.equal(soundsPlayed[0], 'meow');
+
+  // Rapid immediate second sound should be debounced
+  const played2 = catSoundManager.playPurr();
+  assert.equal(played2, false, 'Should debounce within cooldown window');
+
+  // Disable sound preference
+  await catSoundManager.setSoundEnabled(false);
+  assert.equal(catSoundManager.getSoundEnabled(), false);
+  const playedWhenDisabled = catSoundManager.playMeow();
+  assert.equal(playedWhenDisabled, false, 'Should not play when sound preference is disabled');
+
+  // Cleanup
+  unregister();
+  await catSoundManager.setSoundEnabled(true);
+});
+
+test('Cat Theme Adapter: 11 Theme style derivation', () => {
+  const { getCatThemeStyle } = require('../lib/cat/catThemeAdapter');
+  const { THEME_REGISTRY } = require('../theme/registry');
+
+  // Test all 11 themes produce valid, unique CatThemeStyle objects
+  const themeIds = [
+    'apple-liquid',
+    'retro-peaceful',
+    'health',
+    'fitness',
+    'beach',
+    'travel',
+    'parent',
+    'agriculture',
+    'commuter',
+    'event',
+  ];
+
+  for (const id of themeIds) {
+    const theme = THEME_REGISTRY[id];
+    assert.ok(theme, `Theme ${id} must exist in registry`);
+    const style = getCatThemeStyle(theme, false);
+    assert.ok(style.coatColor, `${id} must have coatColor`);
+    assert.ok(style.outlineColor, `${id} must have outlineColor`);
+    assert.ok(style.eyeColor, `${id} must have eyeColor`);
+    assert.ok(style.noseColor, `${id} must have noseColor`);
+    assert.ok(style.motionIntensity > 0, `${id} must have positive motionIntensity`);
+  }
+
+  // Retro 2D must have comic offset shadow
+  const retroStyle = getCatThemeStyle(THEME_REGISTRY['retro-peaceful'], false);
+  assert.equal(retroStyle.shadowStyle, 'comic_offset');
+  assert.equal(retroStyle.outlineWidth, 2);
+
+  // Apple Liquid must have glass ambient shadow
+  const liquidStyle = getCatThemeStyle(THEME_REGISTRY['apple-liquid'], false);
+  assert.equal(liquidStyle.shadowStyle, 'glass_ambient');
+});
+
+test('Cat Micro-Advice: Environmental & persona-informed weather guidance', () => {
+  const { generateWeatherMicroAdvice } = require('../lib/cat/catMicroAdvice');
+
+  // Thunder advice
+  const thunderMsg = generateWeatherMicroAdvice({ isThunder: true });
+  assert.ok(thunderMsg?.text.includes('Thunder'));
+
+  // Air quality advice
+  const aqiMsg = generateWeatherMicroAdvice({ aqi: 220 });
+  assert.ok(aqiMsg?.text.includes('Air quality'));
+
+  // Rain advice
+  const rainMsg = generateWeatherMicroAdvice({ isRain: true });
+  assert.ok(rainMsg?.text.includes('umbrella'));
+
+  // Fitness persona advice
+  const fitnessMsg = generateWeatherMicroAdvice({ isRain: true, dominantPersona: 'fitness' });
+  assert.ok(fitnessMsg?.text.includes('outdoor run'));
+
+  // Beach persona advice
+  const beachMsg = generateWeatherMicroAdvice({ isClear: true, temp: 26, dominantPersona: 'beach' });
+  assert.ok(beachMsg?.text.includes('beach'));
+});
+
+test('Cat Interaction: Single tap, consecutive tap combo easter egg & cuddle', () => {
+  const { CatStateEngine } = require('../lib/cat/catStateEngine');
+
+  // Normal tap
+  const single = CatStateEngine.computeInteractionReaction('single_tap', 1);
+  assert.equal(single.mood, 'happy');
+  assert.equal(single.sound, 'meow');
+
+  // Combo easter egg (3+ taps)
+  const combo = CatStateEngine.computeInteractionReaction('single_tap', 3);
+  assert.equal(combo.mood, 'excited');
+  assert.equal(combo.pose, 'bongo_tap');
+  assert.equal(combo.sound, 'happy_meow');
+  assert.ok(combo.message?.text.includes('bongo'));
+
+  // Long press cuddle
+  const longPress = CatStateEngine.computeInteractionReaction('long_press');
+  assert.equal(longPress.sound, 'purr');
+  assert.ok(longPress.message?.text.includes('purrs'));
+});
+

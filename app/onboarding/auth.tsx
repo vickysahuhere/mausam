@@ -16,22 +16,35 @@ export default function Auth() {
     setGuest,
     signInWithPassword,
     signUpWithPassword,
+    signInWithOtp,
     verifyOtp,
     resendVerificationEmail,
     checkVerificationStatus,
+    requestPasswordReset,
+    confirmPasswordReset,
   } = useAuthStore();
   const theme = useTheme();
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
+  const [signinMethod, setSigninMethod] = useState<'otp' | 'password'>('otp');
+  const [loginOtpSent, setLoginOtpSent] = useState(false);
+  const [loginOtpCode, setLoginOtpCode] = useState('');
+  const [isUnregisteredError, setIsUnregisteredError] = useState(false);
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Email Confirmation State
+  // Password Reset State
+  const [resetStage, setResetStage] = useState<'request' | 'confirm'>('request');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetSuccessMsg, setResetSuccessMsg] = useState<string | null>(null);
+
+  // Email Confirmation State (Sign up link)
   const [awaitingVerification, setAwaitingVerification] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
 
@@ -51,6 +64,59 @@ export default function Auth() {
   const handleGuestLogin = () => {
     setGuest(true);
     router.push('/onboarding/survey');
+  };
+
+  const handleRequestReset = async () => {
+    setErrorMsg(null);
+    setResetSuccessMsg(null);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await requestPasswordReset(trimmedEmail);
+      if (res.success) {
+        setResetStage('confirm');
+        setResetSuccessMsg('Recovery code sent! Check your inbox or use 123456 in demo mode.');
+      } else {
+        setErrorMsg(res.error || 'Failed to send recovery code.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error sending recovery code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    setErrorMsg(null);
+    setResetSuccessMsg(null);
+    const trimmedEmail = email.trim();
+    const trimmedCode = resetCode.trim();
+    if (!trimmedCode || trimmedCode.length < 6) {
+      setErrorMsg('Please enter the 6-digit recovery code.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setErrorMsg('New password must be at least 6 characters.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await confirmPasswordReset(trimmedEmail, trimmedCode, newPassword);
+      if (res.success) {
+        Alert.alert('Password Updated', 'Your password has been reset successfully. Logging you in...');
+        navigateAfterAuth();
+      } else {
+        setErrorMsg(res.error || 'Failed to reset password. Please check your recovery code.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error confirming password reset.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAuthSubmit = async () => {
@@ -98,10 +164,37 @@ export default function Auth() {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    const trimmedCode = otpCode.trim();
+  const handleSendLoginOtp = async () => {
+    setErrorMsg(null);
+    setIsUnregisteredError(false);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await signInWithOtp(trimmedEmail);
+      if (res.success) {
+        setLoginOtpSent(true);
+        setIsUnregisteredError(false);
+      } else {
+        setErrorMsg(res.error || 'Failed to send verification code.');
+        if (res.error?.includes("isn't registered") || res.error?.includes('create an account')) {
+          setIsUnregisteredError(true);
+        }
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error sending login code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async () => {
+    const trimmedCode = loginOtpCode.trim();
     if (!trimmedCode || trimmedCode.length < 6) {
-      setErrorMsg('Please enter the 6-digit confirmation code.');
+      setErrorMsg('Please enter the 6-digit verification code.');
       return;
     }
     setLoading(true);
@@ -109,10 +202,10 @@ export default function Auth() {
     try {
       const res = await verifyOtp(email.trim(), trimmedCode);
       if (res.success) {
-        Alert.alert('Email Confirmed!', 'Your account has been verified and synced.');
+        Alert.alert('Signed In', 'Welcome back to Mausam!');
         navigateAfterAuth();
       } else {
-        setErrorMsg(res.error || 'Invalid or expired confirmation code.');
+        setErrorMsg(res.error || 'Invalid or expired verification code.');
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Verification error.');
@@ -130,7 +223,7 @@ export default function Auth() {
         Alert.alert('Welcome!', 'Your email is confirmed and your account is active.');
         navigateAfterAuth();
       } else {
-        setErrorMsg('Email not verified yet. Please tap the link in your email or enter the code.');
+        setErrorMsg('Email not verified yet. Please tap the verification link sent to your email.');
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Verification check failed.');
@@ -220,17 +313,18 @@ export default function Auth() {
                   <Icon name="compass" size={28} color={theme.colors.primary} />
                 </View>
                 <Typography variant="h2" style={{ fontWeight: '800', textAlign: 'center' }}>
-                  Confirm Your Email
+                  Verify Your Email
                 </Typography>
                 <Typography
                   variant="caption"
                   color={theme.colors.textSecondary}
                   style={{ textAlign: 'center', marginTop: 6, lineHeight: 18 }}
                 >
-                  We sent a confirmation link & 6-digit code to{'\n'}
+                  We sent a verification link to{'\n'}
                   <Typography variant="caption" style={{ fontWeight: '700', color: theme.colors.text }}>
                     {email.trim()}
                   </Typography>
+                  {'\n'}Please check your inbox and tap the link to confirm your account.
                 </Typography>
               </View>
 
@@ -268,43 +362,8 @@ export default function Auth() {
                 </View>
               )}
 
-              {/* Enter 6-digit OTP code */}
-              <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
-                Enter 6-Digit Code
-              </Typography>
-              <TextInput
-                value={otpCode}
-                onChangeText={setOtpCode}
-                placeholder="123456"
-                placeholderTextColor={theme.colors.textSecondary}
-                keyboardType="number-pad"
-                maxLength={8}
-                style={{
-                  backgroundColor: theme.colors.surfaceSecondary,
-                  borderRadius: theme.shapes.borderRadius.s,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  fontSize: 18,
-                  fontWeight: '700',
-                  color: theme.colors.text,
-                  textAlign: 'center',
-                  letterSpacing: 4,
-                  marginBottom: 12,
-                }}
-              />
-
               <Button
-                title={loading ? 'Verifying...' : 'Verify Code'}
-                onPress={handleVerifyOtp}
-                disabled={loading || otpCode.trim().length < 6}
-                style={{ marginBottom: 8 }}
-              />
-
-              <Button
-                title={loading ? 'Checking...' : "I've Clicked the Email Link"}
-                variant="outline"
+                title={loading ? 'Checking...' : "I've Clicked the Verification Link"}
                 onPress={handleCheckEmailLink}
                 disabled={loading}
                 style={{ marginBottom: 12 }}
@@ -317,7 +376,7 @@ export default function Auth() {
                   style={{ paddingVertical: 4 }}
                 >
                   <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
-                    {resending ? 'Sending...' : 'Resend Email'}
+                    {resending ? 'Sending...' : 'Resend Verification Link'}
                   </Typography>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -375,177 +434,551 @@ export default function Auth() {
 
               {/* Cloud Account Card */}
               <Card style={{ padding: theme.spacing.m, marginBottom: theme.spacing.m }}>
-                {/* Mode Switcher Tabs */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    backgroundColor: theme.colors.surfaceSecondary,
-                    borderRadius: theme.shapes.borderRadius.s,
-                    padding: 3,
-                    marginBottom: theme.spacing.m,
-                  }}
-                >
-                  <TouchableOpacity
-                    onPress={() => { setMode('signin'); setErrorMsg(null); }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      alignItems: 'center',
-                      borderRadius: theme.shapes.borderRadius.s - 2,
-                      backgroundColor: mode === 'signin' ? theme.colors.surface : 'transparent',
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color={mode === 'signin' ? theme.colors.primary : theme.colors.textSecondary}
-                      style={{ fontWeight: mode === 'signin' ? '700' : '500' }}
-                    >
-                      Sign In
-                    </Typography>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => { setMode('signup'); setErrorMsg(null); }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      alignItems: 'center',
-                      borderRadius: theme.shapes.borderRadius.s - 2,
-                      backgroundColor: mode === 'signup' ? theme.colors.surface : 'transparent',
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color={mode === 'signup' ? theme.colors.primary : theme.colors.textSecondary}
-                      style={{ fontWeight: mode === 'signup' ? '700' : '500' }}
-                    >
-                      Create Account
-                    </Typography>
-                  </TouchableOpacity>
-                </View>
+                {mode === 'reset' ? (
+                  <View>
+                    <View style={{ alignItems: 'center', marginBottom: theme.spacing.m }}>
+                      <View
+                        style={{
+                          width: 46,
+                          height: 46,
+                          borderRadius: 23,
+                          backgroundColor: theme.colors.primary + '18',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Icon name="compass" size={24} color={theme.colors.primary} />
+                      </View>
+                      <Typography variant="h3" style={{ fontWeight: '800', textAlign: 'center' }}>
+                        Reset Password
+                      </Typography>
+                      <Typography variant="caption" color={theme.colors.textSecondary} style={{ textAlign: 'center', marginTop: 4 }}>
+                        {resetStage === 'request'
+                          ? 'Enter your email to receive a 6-digit recovery code.'
+                          : `Enter code sent to ${email} and your new password.`}
+                      </Typography>
+                    </View>
 
-                {/* Error message */}
-                {errorMsg && (
-                  <View
-                    style={{
-                      backgroundColor: theme.colors.error + '15',
-                      borderColor: theme.colors.error,
-                      borderWidth: 1,
-                      borderRadius: theme.shapes.borderRadius.s,
-                      padding: 10,
-                      marginBottom: theme.spacing.m,
-                    }}
-                  >
-                    <Typography variant="caption" color={theme.colors.error} style={{ fontWeight: '600' }}>
-                      {errorMsg}
-                    </Typography>
+                    {errorMsg && (
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.error + '15',
+                          borderColor: theme.colors.error,
+                          borderWidth: 1,
+                          borderRadius: theme.shapes.borderRadius.s,
+                          padding: 10,
+                          marginBottom: theme.spacing.m,
+                        }}
+                      >
+                        <Typography variant="caption" color={theme.colors.error} style={{ fontWeight: '600' }}>
+                          {errorMsg}
+                        </Typography>
+                      </View>
+                    )}
+
+                    {resetSuccessMsg && (
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.success + '15',
+                          borderColor: theme.colors.success,
+                          borderWidth: 1,
+                          borderRadius: theme.shapes.borderRadius.s,
+                          padding: 10,
+                          marginBottom: theme.spacing.m,
+                        }}
+                      >
+                        <Typography variant="caption" color={theme.colors.success} style={{ fontWeight: '600' }}>
+                          {resetSuccessMsg}
+                        </Typography>
+                      </View>
+                    )}
+
+                    {resetStage === 'request' ? (
+                      <>
+                        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
+                          Email Address
+                        </Typography>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: theme.colors.surfaceSecondary,
+                            borderRadius: theme.shapes.borderRadius.s,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            paddingHorizontal: 12,
+                            marginBottom: theme.spacing.l,
+                          }}
+                        >
+                          <TextInput
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="name@example.com"
+                            placeholderTextColor={theme.colors.textSecondary}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            style={{
+                              flex: 1,
+                              paddingVertical: 10,
+                              color: theme.colors.text,
+                              fontSize: 14,
+                            }}
+                          />
+                        </View>
+
+                        <Button
+                          title={loading ? 'Sending Code...' : 'Send Recovery Code'}
+                          onPress={handleRequestReset}
+                          disabled={loading}
+                          style={{ width: '100%', marginBottom: 12 }}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
+                          6-Digit Recovery Code
+                        </Typography>
+                        <TextInput
+                          value={resetCode}
+                          onChangeText={setResetCode}
+                          placeholder="123456"
+                          placeholderTextColor={theme.colors.textSecondary}
+                          keyboardType="number-pad"
+                          maxLength={8}
+                          style={{
+                            backgroundColor: theme.colors.surfaceSecondary,
+                            borderRadius: theme.shapes.borderRadius.s,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            fontSize: 18,
+                            fontWeight: '700',
+                            color: theme.colors.text,
+                            textAlign: 'center',
+                            letterSpacing: 4,
+                            marginBottom: theme.spacing.m,
+                          }}
+                        />
+
+                        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
+                          New Password
+                        </Typography>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: theme.colors.surfaceSecondary,
+                            borderRadius: theme.shapes.borderRadius.s,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            paddingHorizontal: 12,
+                            marginBottom: theme.spacing.l,
+                          }}
+                        >
+                          <TextInput
+                            value={newPassword}
+                            onChangeText={setNewPassword}
+                            placeholder="Minimum 6 characters"
+                            placeholderTextColor={theme.colors.textSecondary}
+                            secureTextEntry
+                            style={{
+                              flex: 1,
+                              paddingVertical: 10,
+                              color: theme.colors.text,
+                              fontSize: 14,
+                            }}
+                          />
+                        </View>
+
+                        <Button
+                          title={loading ? 'Resetting...' : 'Set New Password & Sign In'}
+                          onPress={handleConfirmReset}
+                          disabled={loading || resetCode.trim().length < 6 || newPassword.length < 6}
+                          style={{ width: '100%', marginBottom: 12 }}
+                        />
+                      </>
+                    )}
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 4 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setMode('signin');
+                          setErrorMsg(null);
+                          setResetSuccessMsg(null);
+                        }}
+                        style={{ paddingVertical: 6, paddingHorizontal: 12 }}
+                      >
+                        <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+                          Back to Sign In
+                        </Typography>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                )}
-
-                {/* Name Field (Sign Up Only) */}
-                {mode === 'signup' && (
+                ) : (
                   <>
-                    <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
-                      Full Name
-                    </Typography>
+                    {/* Mode Switcher Tabs */}
                     <View
                       style={{
                         flexDirection: 'row',
-                        alignItems: 'center',
                         backgroundColor: theme.colors.surfaceSecondary,
                         borderRadius: theme.shapes.borderRadius.s,
-                        borderWidth: 1,
-                        borderColor: theme.colors.border,
-                        paddingHorizontal: 12,
+                        padding: 3,
                         marginBottom: theme.spacing.m,
                       }}
                     >
-                      <TextInput
-                        value={fullName}
-                        onChangeText={setFullName}
-                        placeholder="Vicky Sahu"
-                        placeholderTextColor={theme.colors.textSecondary}
-                        autoCapitalize="words"
+                      <TouchableOpacity
+                        onPress={() => {
+                          setMode('signin');
+                          setErrorMsg(null);
+                          setIsUnregisteredError(false);
+                        }}
                         style={{
                           flex: 1,
-                          paddingVertical: 10,
-                          color: theme.colors.text,
-                          fontSize: 14,
+                          paddingVertical: 8,
+                          alignItems: 'center',
+                          borderRadius: theme.shapes.borderRadius.s - 2,
+                          backgroundColor: mode === 'signin' ? theme.colors.surface : 'transparent',
                         }}
-                      />
+                      >
+                        <Typography
+                          variant="caption"
+                          color={mode === 'signin' ? theme.colors.primary : theme.colors.textSecondary}
+                          style={{ fontWeight: mode === 'signin' ? '700' : '500' }}
+                        >
+                          Sign In
+                        </Typography>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setMode('signup');
+                          setErrorMsg(null);
+                          setIsUnregisteredError(false);
+                        }}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 8,
+                          alignItems: 'center',
+                          borderRadius: theme.shapes.borderRadius.s - 2,
+                          backgroundColor: mode === 'signup' ? theme.colors.surface : 'transparent',
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color={mode === 'signup' ? theme.colors.primary : theme.colors.textSecondary}
+                          style={{ fontWeight: mode === 'signup' ? '700' : '500' }}
+                        >
+                          Create Account
+                        </Typography>
+                      </TouchableOpacity>
                     </View>
+
+                    {/* Error message */}
+                    {errorMsg && !isUnregisteredError && (
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.error + '15',
+                          borderColor: theme.colors.error,
+                          borderWidth: 1,
+                          borderRadius: theme.shapes.borderRadius.s,
+                          padding: 10,
+                          marginBottom: theme.spacing.m,
+                        }}
+                      >
+                        <Typography variant="caption" color={theme.colors.error} style={{ fontWeight: '600' }}>
+                          {errorMsg}
+                        </Typography>
+                      </View>
+                    )}
+
+                    {/* Unregistered Account Alert */}
+                    {isUnregisteredError && (
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.error + '15',
+                          borderColor: theme.colors.error,
+                          borderWidth: 1,
+                          borderRadius: theme.shapes.borderRadius.s,
+                          padding: 12,
+                          marginBottom: theme.spacing.m,
+                        }}
+                      >
+                        <Typography variant="caption" color={theme.colors.error} style={{ fontWeight: '700', marginBottom: 4 }}>
+                          This email isn&apos;t registered. Please create an account first.
+                        </Typography>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setMode('signup');
+                            setErrorMsg(null);
+                            setIsUnregisteredError(false);
+                          }}
+                          style={{ marginTop: 4 }}
+                        >
+                          <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '800' }}>
+                            Switch to Create Account →
+                          </Typography>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {/* 6-Digit OTP verification stage for existing user */}
+                    {mode === 'signin' && loginOtpSent ? (
+                      <View>
+                        <View style={{ alignItems: 'center', marginBottom: theme.spacing.m }}>
+                          <View
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              backgroundColor: theme.colors.primary + '18',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Icon name="compass" size={22} color={theme.colors.primary} />
+                          </View>
+                          <Typography variant="h2" style={{ fontWeight: '800', textAlign: 'center' }}>
+                            Enter 6-Digit Code
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color={theme.colors.textSecondary}
+                            style={{ textAlign: 'center', marginTop: 4, lineHeight: 18 }}
+                          >
+                            We sent a login verification code to{'\n'}
+                            <Typography variant="caption" style={{ fontWeight: '700', color: theme.colors.text }}>
+                              {email.trim()}
+                            </Typography>
+                          </Typography>
+                        </View>
+
+                        <TextInput
+                          value={loginOtpCode}
+                          onChangeText={setLoginOtpCode}
+                          placeholder="123456"
+                          placeholderTextColor={theme.colors.textSecondary}
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          style={{
+                            backgroundColor: theme.colors.surfaceSecondary,
+                            borderRadius: theme.shapes.borderRadius.s,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            fontSize: 20,
+                            fontWeight: '700',
+                            color: theme.colors.text,
+                            textAlign: 'center',
+                            letterSpacing: 6,
+                            marginBottom: theme.spacing.m,
+                          }}
+                        />
+
+                        <Button
+                          title={loading ? 'Verifying...' : 'Verify & Sign In'}
+                          onPress={handleVerifyLoginOtp}
+                          disabled={loading || loginOtpCode.trim().length < 6}
+                          style={{ width: '100%', marginBottom: 12 }}
+                        />
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <TouchableOpacity
+                            onPress={handleSendLoginOtp}
+                            disabled={loading}
+                            style={{ paddingVertical: 4 }}
+                          >
+                            <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                              Resend Code
+                            </Typography>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setLoginOtpSent(false);
+                              setLoginOtpCode('');
+                              setErrorMsg(null);
+                            }}
+                            style={{ paddingVertical: 4 }}
+                          >
+                            <Typography variant="caption" color={theme.colors.textSecondary}>
+                              Change Email
+                            </Typography>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <>
+                        {/* Name Field (Sign Up Only) */}
+                        {mode === 'signup' && (
+                          <>
+                            <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
+                              Full Name
+                            </Typography>
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: theme.colors.surfaceSecondary,
+                                borderRadius: theme.shapes.borderRadius.s,
+                                borderWidth: 1,
+                                borderColor: theme.colors.border,
+                                paddingHorizontal: 12,
+                                marginBottom: theme.spacing.m,
+                              }}
+                            >
+                              <TextInput
+                                value={fullName}
+                                onChangeText={setFullName}
+                                placeholder="Vicky Sahu"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                autoCapitalize="words"
+                                style={{
+                                  flex: 1,
+                                  paddingVertical: 10,
+                                  color: theme.colors.text,
+                                  fontSize: 14,
+                                }}
+                              />
+                            </View>
+                          </>
+                        )}
+
+                        {/* Email Field */}
+                        <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
+                          Email Address
+                        </Typography>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: theme.colors.surfaceSecondary,
+                            borderRadius: theme.shapes.borderRadius.s,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            paddingHorizontal: 12,
+                            marginBottom: mode === 'signin' && signinMethod === 'otp' ? theme.spacing.l : theme.spacing.m,
+                          }}
+                        >
+                          <TextInput
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="name@example.com"
+                            placeholderTextColor={theme.colors.textSecondary}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            style={{
+                              flex: 1,
+                              paddingVertical: 10,
+                              color: theme.colors.text,
+                              fontSize: 14,
+                            }}
+                          />
+                        </View>
+
+                        {/* If Sign In and OTP method selected */}
+                        {mode === 'signin' && signinMethod === 'otp' ? (
+                          <>
+                            <Button
+                              title={loading ? 'Sending Code...' : 'Send 6-Digit Login Code'}
+                              onPress={handleSendLoginOtp}
+                              disabled={loading}
+                              style={{ width: '100%', marginBottom: 12 }}
+                            />
+
+                            <TouchableOpacity
+                              onPress={() => {
+                                setSigninMethod('password');
+                                setErrorMsg(null);
+                                setIsUnregisteredError(false);
+                              }}
+                              style={{ alignItems: 'center', paddingVertical: 6 }}
+                            >
+                              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                                Sign in with Password instead
+                              </Typography>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <>
+                            {/* Password Field Header with Forgot? link */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
+                                Password
+                              </Typography>
+                              {mode === 'signin' && (
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    setMode('reset');
+                                    setResetStage('request');
+                                    setErrorMsg(null);
+                                    setResetSuccessMsg(null);
+                                  }}
+                                  style={{ paddingVertical: 2, paddingHorizontal: 4 }}
+                                >
+                                  <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+                                    Forgot Password?
+                                  </Typography>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: theme.colors.surfaceSecondary,
+                                borderRadius: theme.shapes.borderRadius.s,
+                                borderWidth: 1,
+                                borderColor: theme.colors.border,
+                                paddingHorizontal: 12,
+                                marginBottom: theme.spacing.l,
+                              }}
+                            >
+                              <TextInput
+                                value={password}
+                                onChangeText={setPassword}
+                                placeholder="Minimum 6 characters"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                secureTextEntry
+                                style={{
+                                  flex: 1,
+                                  paddingVertical: 10,
+                                  color: theme.colors.text,
+                                  fontSize: 14,
+                                }}
+                              />
+                            </View>
+
+                            <Button
+                              title={loading ? 'Please wait...' : mode === 'signin' ? 'Sign In with Password' : 'Create Account'}
+                              onPress={handleAuthSubmit}
+                              disabled={loading}
+                              style={{ width: '100%', marginBottom: mode === 'signin' ? 12 : 0 }}
+                            />
+
+                            {mode === 'signin' && (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setSigninMethod('otp');
+                                  setErrorMsg(null);
+                                  setIsUnregisteredError(false);
+                                }}
+                                style={{ alignItems: 'center', paddingVertical: 6 }}
+                              >
+                                <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                                  Sign in with 6-Digit Email Code instead
+                                </Typography>
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
                   </>
                 )}
-
-                {/* Email Field */}
-                <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
-                  Email Address
-                </Typography>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: theme.colors.surfaceSecondary,
-                    borderRadius: theme.shapes.borderRadius.s,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                    paddingHorizontal: 12,
-                    marginBottom: theme.spacing.m,
-                  }}
-                >
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="name@example.com"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      color: theme.colors.text,
-                      fontSize: 14,
-                    }}
-                  />
-                </View>
-
-                {/* Password Field */}
-                <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', marginBottom: 4 }}>
-                  Password
-                </Typography>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: theme.colors.surfaceSecondary,
-                    borderRadius: theme.shapes.borderRadius.s,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                    paddingHorizontal: 12,
-                    marginBottom: theme.spacing.l,
-                  }}
-                >
-                  <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="Minimum 6 characters"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    secureTextEntry
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      color: theme.colors.text,
-                      fontSize: 14,
-                    }}
-                  />
-                </View>
-
-                <Button
-                  title={loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-                  onPress={handleAuthSubmit}
-                  disabled={loading}
-                  style={{ width: '100%' }}
-                />
               </Card>
             </>
           )}

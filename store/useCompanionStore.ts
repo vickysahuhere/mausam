@@ -16,14 +16,24 @@ import {
 } from '../lib/companion/companionBrain';
 import { selectContextualRemark } from '../lib/companion/companionRemarks';
 import { companionEvents } from '../lib/companion/companionEvents';
+import { CatMood, CatActivity } from '../lib/cat/catTypes';
+import { catSoundManager } from '../lib/cat/catSoundManager';
+import { CatStateEngine } from '../lib/cat/catStateEngine';
+import { WeatherContextData } from '../lib/cat/catMicroAdvice';
 
 const STORAGE_KEY = '@mausam_companion_storage_v1';
+const SOUND_STORAGE_KEY = '@mausam_cat_sound_enabled';
+const REACTIONS_STORAGE_KEY = '@mausam_cat_reactions_enabled';
 let activeTimerId: any = null;
 
 interface CompanionStoreState {
   isEnabled: boolean;
+  soundEnabled: boolean;
+  reactionsEnabled: boolean;
   name: string;
   currentState: CompanionState;
+  catMood: CatMood;
+  catActivity: CatActivity;
   pettedCount: number;
   treatsGiven: number;
   affinityLevel: number;
@@ -38,16 +48,23 @@ interface CompanionStoreState {
   locationChangeCountInSession: number;
   lastSessionTimestamp: number;
   recentMessageIds: string[];
+  processedAlertIds: string[];
   inactivitySeconds: number;
   inactivityTier: number;
   wakeStep: number;
+  isWaking: boolean;
 
   // Actions
   initialize: () => Promise<void>;
   setEnabled: (enabled: boolean) => Promise<void>;
+  setSoundEnabled: (enabled: boolean) => Promise<void>;
+  setReactionsEnabled: (enabled: boolean) => Promise<void>;
   setName: (name: string) => Promise<void>;
+  wakeUp: () => void;
   triggerReaction: (params: {
     mood?: CompanionMood;
+    catMood?: CatMood;
+    catActivity?: CatActivity;
     expression: CompanionExpression;
     pose: CompanionPose;
     accessory?: CompanionAccessory;
@@ -60,22 +77,28 @@ interface CompanionStoreState {
   petCat: () => void;
   feedCat: () => void;
   tapCat: () => void;
+  longPressCat: () => void;
   dismissSpeech: () => void;
   tickIdle: () => void;
-  incrementInactivity: () => void;
+  incrementInactivity: (deltaSecs?: number) => void;
   resetInactivity: () => void;
   recordMessageId: (id: string) => void;
   incrementRefreshCount: () => void;
   incrementTempTapCount: () => void;
   incrementLocationChangeCount: () => void;
   syncWithAmbientWeather: (temp?: number, isRain?: boolean, isThunder?: boolean) => void;
+  surfaceWeatherGuidance: (ctx: WeatherContextData) => void;
   resetAll: () => Promise<void>;
 }
 
 export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   isEnabled: true,
+  soundEnabled: true,
+  reactionsEnabled: true,
   name: 'Mimi',
   currentState: getDefaultRestingState(),
+  catMood: 'relaxed',
+  catActivity: 'resting',
   pettedCount: 0,
   treatsGiven: 0,
   affinityLevel: 10,
@@ -88,9 +111,11 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   locationChangeCountInSession: 0,
   lastSessionTimestamp: Date.now(),
   recentMessageIds: [],
+  processedAlertIds: [],
   inactivitySeconds: 0,
   inactivityTier: 1,
   wakeStep: 0,
+  isWaking: false,
 
   initialize: async () => {
     if (get().isInitialized) return;
@@ -109,12 +134,36 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       }
     );
 
+    // Extra listener for alert deduplication and location reactions
+    companionEvents.on('severe_alert_triggered', (payload) => {
+      const { processedAlertIds, reactionsEnabled } = get();
+      if (!reactionsEnabled) return;
+      if (processedAlertIds.includes(payload.title)) {
+        return; // Deduplicate: do not repeat on every re-render!
+      }
+      set({ processedAlertIds: [...processedAlertIds, payload.title] });
+      if (get().soundEnabled) {
+        catSoundManager.play('surprised');
+      }
+    });
+
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const [raw, soundPref, reactPref] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEY),
+        AsyncStorage.getItem(SOUND_STORAGE_KEY),
+        AsyncStorage.getItem(REACTIONS_STORAGE_KEY),
+      ]);
+
+      const isSound = soundPref !== null ? JSON.parse(soundPref) : true;
+      const isReact = reactPref !== null ? JSON.parse(reactPref) : true;
+      catSoundManager.setSoundEnabled(isSound);
+
       if (raw) {
         const parsed = JSON.parse(raw);
         set({
           isEnabled: parsed.isEnabled ?? true,
+          soundEnabled: isSound,
+          reactionsEnabled: isReact,
           name: parsed.name ?? 'Mimi',
           pettedCount: parsed.pettedCount ?? 0,
           treatsGiven: parsed.treatsGiven ?? 0,
@@ -123,14 +172,19 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
           isInitialized: true,
         });
 
-        // Trigger app_opened after loading persistent state
         companionEvents.emit('app_opened', undefined);
         return;
       }
+
+      set({
+        soundEnabled: isSound,
+        reactionsEnabled: isReact,
+        isInitialized: true,
+      });
     } catch {
-      // Non-blocking fallback
+      set({ isInitialized: true });
     }
-    set({ isInitialized: true });
+
     companionEvents.emit('app_opened', undefined);
   },
 
@@ -150,7 +204,26 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
         })
       );
     } catch {
-      // Local storage non-blocking
+      // Non-blocking
+    }
+  },
+
+  setSoundEnabled: async (enabled: boolean) => {
+    set({ soundEnabled: enabled });
+    await catSoundManager.setSoundEnabled(enabled);
+    try {
+      await AsyncStorage.setItem(SOUND_STORAGE_KEY, JSON.stringify(enabled));
+    } catch {
+      // Non-blocking
+    }
+  },
+
+  setReactionsEnabled: async (enabled: boolean) => {
+    set({ reactionsEnabled: enabled });
+    try {
+      await AsyncStorage.setItem(REACTIONS_STORAGE_KEY, JSON.stringify(enabled));
+    } catch {
+      // Non-blocking
     }
   },
 
@@ -170,15 +243,30 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
         })
       );
     } catch {
-      // Local storage non-blocking
+      // Non-blocking
     }
   },
 
   triggerReaction: (params) => {
-    const { currentState } = get();
+    const { currentState, isWaking, inactivityTier, reactionsEnabled } = get();
+    if (!reactionsEnabled && params.priority !== 'CRITICAL') {
+      return false;
+    }
+    if (isWaking && params.priorityScore < 80) {
+      return false;
+    }
     if (!canOverrideState(currentState, params.priorityScore)) {
       return false;
     }
+
+    const isSleeping =
+      currentState.expression === 'sleeping' ||
+      currentState.pose === 'curl_sleep' ||
+      currentState.accessory === 'eye_mask' ||
+      inactivityTier >= 5;
+
+    // Suppress speech if cat is sleeping unless waking sequence
+    const speech = isSleeping && params.priority !== 'INTERACTION' ? null : (params.speechText ?? null);
 
     const nextState: CompanionState = {
       mood: params.mood ?? currentState.mood,
@@ -186,15 +274,19 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       pose: params.pose,
       accessory: params.accessory ?? currentState.accessory,
       gazeTarget: params.gazeTarget ?? currentState.gazeTarget ?? 'user',
-      speechText: params.speechText ?? null,
-      speechKey: params.speechText ? `${Date.now()}` : null,
+      speechText: speech,
+      speechKey: speech ? `${Date.now()}` : null,
       priority: params.priority,
       priorityScore: params.priorityScore,
       durationMs: params.durationMs,
       timestamp: Date.now(),
     };
 
-    set({ currentState: nextState });
+    set({
+      currentState: nextState,
+      catMood: (params.catMood ?? (params.mood as any) ?? get().catMood),
+      catActivity: (params.catActivity ?? get().catActivity),
+    });
 
     // Auto-revert to resting state after duration finishes
     if (params.durationMs > 0) {
@@ -215,6 +307,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
               priority: 'AMBIENT',
               priorityScore: 10,
             },
+            catActivity: 'resting',
           });
         }
       }, params.durationMs);
@@ -223,8 +316,83 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     return true;
   },
 
+  wakeUp: () => {
+    if (get().isWaking) return;
+    set({ isWaking: true, wakeStep: 1, consecutiveTaps: 0 });
+    get().resetInactivity();
+
+    if (get().soundEnabled) {
+      catSoundManager.playYawn();
+    }
+
+    // Stage 1: Touch / Stir -> Drowsy, eyes crack open, sitting up, eye mask removed
+    get().triggerReaction({
+      mood: 'sleepy',
+      catMood: 'sleepy',
+      catActivity: 'napping',
+      expression: 'sleepy',
+      pose: 'sit',
+      accessory: 'none',
+      gazeTarget: 'user',
+      speechText: null,
+      priority: 'INTERACTION',
+      priorityScore: 80,
+      durationMs: 1100,
+    });
+
+    setTimeout(() => {
+      if (!get().isWaking) return;
+      set({ wakeStep: 2 });
+      // Stage 2: Intentional stretch & yawn
+      get().triggerReaction({
+        mood: 'curious',
+        catMood: 'relaxed',
+        catActivity: 'resting',
+        expression: 'neutral',
+        pose: 'stretch_yawn',
+        accessory: 'none',
+        gazeTarget: 'user',
+        speechText: null,
+        priority: 'INTERACTION',
+        priorityScore: 80,
+        durationMs: 1400,
+      });
+
+      setTimeout(() => {
+        set({ isWaking: false, wakeStep: 0 });
+        // Stage 3: Fully awake, perching peacefully
+        get().triggerReaction({
+          mood: 'peaceful',
+          catMood: 'relaxed',
+          catActivity: 'resting',
+          expression: 'neutral',
+          pose: 'perch',
+          accessory: 'none',
+          gazeTarget: 'user',
+          speechText: null,
+          priority: 'AMBIENT',
+          priorityScore: 10,
+          durationMs: 0,
+        });
+      }, 1400);
+    }, 1100);
+  },
+
   petCat: () => {
-    const { pettedCount, affinityLevel, recentMessageIds } = get();
+    const { pettedCount, affinityLevel, recentMessageIds, currentState, inactivityTier, isWaking, soundEnabled } = get();
+    if (isWaking) return;
+
+    const isSleeping =
+      currentState.expression === 'sleeping' ||
+      currentState.pose === 'curl_sleep' ||
+      currentState.accessory === 'eye_mask' ||
+      inactivityTier >= 5;
+
+    if (isSleeping) {
+      get().wakeUp();
+      return;
+    }
+
     const newCount = pettedCount + 1;
     const newAffinity = Math.min(100, affinityLevel + 2);
 
@@ -236,6 +404,10 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       wakeStep: 0,
     });
 
+    if (soundEnabled) {
+      catSoundManager.playPurr();
+    }
+
     let speech: string | null = null;
     if (newCount % 5 === 0) {
       const remark = selectContextualRemark('general', Math.floor(newAffinity / 10), recentMessageIds);
@@ -245,6 +417,8 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
     get().triggerReaction({
       mood: 'happy',
+      catMood: 'happy',
+      catActivity: 'grooming',
       expression: 'blissful',
       pose: 'bongo_tap',
       gazeTarget: 'user',
@@ -256,7 +430,6 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
     companionEvents.emit('user_pet_cat', undefined);
 
-    // Persist stats
     try {
       const state = get();
       AsyncStorage.setItem(
@@ -276,7 +449,20 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   },
 
   feedCat: () => {
-    const { treatsGiven, affinityLevel } = get();
+    const { treatsGiven, affinityLevel, currentState, inactivityTier, isWaking, soundEnabled } = get();
+    if (isWaking) return;
+
+    const isSleeping =
+      currentState.expression === 'sleeping' ||
+      currentState.pose === 'curl_sleep' ||
+      currentState.accessory === 'eye_mask' ||
+      inactivityTier >= 5;
+
+    if (isSleeping) {
+      get().wakeUp();
+      return;
+    }
+
     const newTreats = treatsGiven + 1;
     const newAffinity = Math.min(100, affinityLevel + 3);
 
@@ -288,8 +474,14 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       wakeStep: 0,
     });
 
+    if (soundEnabled) {
+      catSoundManager.playChirp();
+    }
+
     get().triggerReaction({
       mood: 'happy',
+      catMood: 'happy',
+      catActivity: 'celebrating',
       expression: 'happy',
       pose: 'bongo_tap',
       gazeTarget: 'user',
@@ -321,50 +513,63 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
   tapCat: () => {
     const now = Date.now();
-    const { currentState, consecutiveTaps, lastTapTime, wakeStep, inactivityTier, affinityLevel, recentMessageIds } = get();
+    const { currentState, consecutiveTaps, lastTapTime, inactivityTier, isWaking, affinityLevel, recentMessageIds, soundEnabled } = get();
 
-    // Check if sleeping -> instant complete wake up on single tap
+    if (isWaking) return;
+
     const isSleeping =
       currentState.expression === 'sleeping' ||
       currentState.pose === 'curl_sleep' ||
       currentState.accessory === 'eye_mask' ||
       inactivityTier >= 5;
 
+    // Check if sleeping -> multi-stage wake up progression
     if (isSleeping) {
-      get().resetInactivity();
-      set({ wakeStep: 0, consecutiveTaps: 0 });
-      const remark = selectContextualRemark('wake_up', Math.floor(affinityLevel / 10), recentMessageIds);
-      if (remark) get().recordMessageId(remark.id);
-
-      get().triggerReaction({
-        mood: 'happy',
-        expression: 'happy',
-        pose: 'stretch_yawn',
-        accessory: 'none',
-        gazeTarget: 'user',
-        speechText: remark?.text ?? 'Is something happening?',
-        priority: 'INTERACTION',
-        priorityScore: 70,
-        durationMs: 2500,
-      });
+      get().wakeUp();
       return;
     }
 
     // Awake: Tap progression
     get().resetInactivity();
-    const isConsecutive = now - lastTapTime < 2500;
+    const isConsecutive = now - lastTapTime < 2200;
     const tapCount = isConsecutive ? consecutiveTaps + 1 : 1;
 
     set({ consecutiveTaps: tapCount, lastTapTime: now });
     companionEvents.emit('user_tap_cat', { tapCount });
 
+    // Special discoverable: 3+ consecutive taps easter egg!
+    if (tapCount >= 3 && tapCount < 5) {
+      const easterEgg = CatStateEngine.computeInteractionReaction('single_tap', tapCount);
+      if (soundEnabled) {
+        catSoundManager.playHappyMeow();
+      }
+      get().triggerReaction({
+        mood: 'happy',
+        catMood: easterEgg.mood,
+        catActivity: easterEgg.activity,
+        expression: easterEgg.expression,
+        pose: easterEgg.pose,
+        gazeTarget: easterEgg.gazeTarget,
+        speechText: easterEgg.message?.text ?? null,
+        priority: easterEgg.priority,
+        priorityScore: easterEgg.priorityScore,
+        durationMs: easterEgg.durationMs,
+      });
+      return;
+    }
+
     if (tapCount >= 5) {
       // Annoyance reaction
       const remark = selectContextualRemark('repeated_tap', Math.floor(affinityLevel / 10), recentMessageIds);
       if (remark) get().recordMessageId(remark.id);
+      if (soundEnabled) {
+        catSoundManager.playTinyMeow();
+      }
 
       get().triggerReaction({
         mood: 'curious',
+        catMood: 'neutral',
+        catActivity: 'resting',
         expression: 'annoyed',
         pose: 'sit',
         gazeTarget: 'user',
@@ -376,9 +581,16 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       return;
     }
 
+    // Normal 1st or 2nd tap
+    if (soundEnabled) {
+      catSoundManager.playMeow();
+    }
+
     if (tapCount === 1) {
       get().triggerReaction({
         mood: 'curious',
+        catMood: 'happy',
+        catActivity: 'resting',
         expression: 'surprised',
         pose: 'wave',
         gazeTarget: 'user',
@@ -390,9 +602,11 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       return;
     }
 
-    // 2-4 taps: playful bongo drumming!
+    // 2 taps: cheerful greeting
     get().triggerReaction({
       mood: 'happy',
+      catMood: 'happy',
+      catActivity: 'resting',
       expression: 'happy',
       pose: 'bongo_tap',
       gazeTarget: 'user',
@@ -403,6 +617,53 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     });
   },
 
+  longPressCat: () => {
+    const { currentState, isWaking, soundEnabled } = get();
+    if (isWaking) return;
+
+    get().resetInactivity();
+    if (soundEnabled) {
+      catSoundManager.playPurr();
+    }
+
+    const cuddleReaction = CatStateEngine.computeInteractionReaction('long_press');
+    get().triggerReaction({
+      mood: 'happy',
+      catMood: cuddleReaction.mood,
+      catActivity: cuddleReaction.activity,
+      expression: cuddleReaction.expression,
+      pose: cuddleReaction.pose,
+      gazeTarget: cuddleReaction.gazeTarget,
+      speechText: cuddleReaction.message?.text ?? null,
+      priority: cuddleReaction.priority,
+      priorityScore: cuddleReaction.priorityScore,
+      durationMs: cuddleReaction.durationMs,
+    });
+  },
+
+  surfaceWeatherGuidance: (ctx: WeatherContextData) => {
+    const { reactionsEnabled, currentState, isWaking } = get();
+    if (!reactionsEnabled || isWaking) return;
+    if (currentState.priorityScore >= 60) return; // Don't interrupt interaction or critical alert
+
+    const env = CatStateEngine.computeEnvironmentReaction({ weather: ctx });
+    if (env.message) {
+      get().triggerReaction({
+        mood: env.mood as any,
+        catMood: env.mood,
+        catActivity: env.activity,
+        expression: env.expression,
+        pose: env.pose,
+        accessory: env.accessory,
+        gazeTarget: env.gazeTarget,
+        speechText: env.message.text,
+        priority: env.priority,
+        priorityScore: env.priorityScore,
+        durationMs: env.durationMs,
+      });
+    }
+  },
+
   dismissSpeech: () => {
     const { currentState } = get();
     if (currentState.speechText) {
@@ -411,7 +672,8 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   },
 
   tickIdle: () => {
-    const { currentState, lastBehavior } = get();
+    const { currentState, lastBehavior, isWaking } = get();
+    if (isWaking) return;
     // Don't interrupt if busy or sleeping
     if (currentState.priorityScore > 20) return;
 
@@ -428,9 +690,9 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     });
   },
 
-  incrementInactivity: () => {
+  incrementInactivity: (deltaSecs: number = 1) => {
     const { inactivitySeconds, inactivityTier } = get();
-    const newSecs = inactivitySeconds + 1;
+    const newSecs = inactivitySeconds + deltaSecs;
     let newTier = 1;
 
     if (newSecs >= 120) {
@@ -477,7 +739,6 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
   syncWithAmbientWeather: (temp, isRain, isThunder) => {
     const { currentState } = get();
-    // If higher priority reaction in flight, do not override
     if (currentState.priorityScore >= 50) return;
 
     const resting = getDefaultRestingState(temp, isRain, isThunder);
@@ -488,8 +749,12 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     const defaultState = getDefaultRestingState();
     set({
       isEnabled: true,
+      soundEnabled: true,
+      reactionsEnabled: true,
       name: 'Mimi',
       currentState: defaultState,
+      catMood: 'relaxed',
+      catActivity: 'resting',
       pettedCount: 0,
       treatsGiven: 0,
       affinityLevel: 10,
@@ -500,12 +765,15 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       locationChangeCountInSession: 0,
       lastSessionTimestamp: Date.now(),
       recentMessageIds: [],
+      processedAlertIds: [],
       inactivitySeconds: 0,
       inactivityTier: 1,
       wakeStep: 0,
     });
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(SOUND_STORAGE_KEY);
+      await AsyncStorage.removeItem(REACTIONS_STORAGE_KEY);
     } catch {
       // Non-blocking
     }

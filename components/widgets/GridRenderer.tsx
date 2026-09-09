@@ -4,6 +4,7 @@ import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-nativ
 import { useLayoutStore, LayoutItem } from '../../store/useLayoutStore';
 import {
   CurrentSummaryWidget,
+  HourlyForecastWidget,
   AqiWidget,
   UvIndexWidget,
   PollenWidget,
@@ -21,6 +22,8 @@ import {
   VisibilityFogWidget,
   ExtendedForecastWidget,
   ComfortIndexWidget,
+  SecondaryLocationsWidget,
+  CompanionCardWidget,
 } from './WeatherWidgets';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useLocaleStore } from '../../store/useLocaleStore';
@@ -31,6 +34,7 @@ import { useCompanionStore } from '../../store/useCompanionStore';
 
 const WIDGET_MAP: Record<string, React.FC<any>> = {
   current_summary: CurrentSummaryWidget,
+  hourly_forecast: HourlyForecastWidget,
   aqi_card: AqiWidget,
   uv_index: UvIndexWidget,
   pollen_estimate: PollenWidget,
@@ -48,6 +52,8 @@ const WIDGET_MAP: Record<string, React.FC<any>> = {
   visibility_fog: VisibilityFogWidget,
   extended_forecast: ExtendedForecastWidget,
   comfort_index: ComfortIndexWidget,
+  secondary_locations: SecondaryLocationsWidget,
+  companion_card: CompanionCardWidget,
 };
 
 interface GridRendererProps {

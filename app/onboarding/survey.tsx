@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,9 @@ import { useLocationStore } from '../../store/useLocationStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { SupportedLocale } from '../../lib/i18n';
+import { CompanionPerch } from '../../components/companion/CompanionPerch';
+import { useCompanionStore } from '../../store/useCompanionStore';
+import { CompanionMood, CompanionExpression, CompanionPose } from '../../lib/companion/companionBrain';
 
 const LANGUAGE_STEP_OPTIONS: { id: SupportedLocale; label: string; sub: string }[] = [
   { id: 'en', label: 'English', sub: 'Standard' },
@@ -43,12 +46,61 @@ export default function Survey() {
     : selections[currentLifestyleQuestion!.id] || [];
   const canProceed = isLanguageStep ? !!locale : currentSelections.length > 0;
 
+  // Mimi speaks contextual remarks on step transitions
+  useEffect(() => {
+    const stepRemarks: Record<number, { text: string; mood: CompanionMood; expression: CompanionExpression; pose: CompanionPose }> = {
+      0: { text: "Okay, let's figure out what you like.", mood: 'curious', expression: 'happy', pose: 'wave' },
+      1: { text: "Hmm... this one is important.", mood: 'curious', expression: 'curious', pose: 'perch' },
+      2: { text: "I'm taking notes.", mood: 'peaceful', expression: 'neutral', pose: 'sit' },
+      3: { text: "Almost there!", mood: 'happy', expression: 'happy', pose: 'bongo_tap' },
+    };
+
+    const isFinalStep = currentStep === totalSteps - 1;
+    const remark = isFinalStep
+      ? { text: "Looking good!", mood: 'happy' as const, expression: 'blissful' as const, pose: 'wave' as const }
+      : stepRemarks[currentStep] || { text: "I'm taking notes.", mood: 'peaceful' as const, expression: 'curious' as const, pose: 'sit' as const };
+
+    useCompanionStore.getState().triggerReaction({
+      mood: remark.mood,
+      expression: remark.expression,
+      pose: remark.pose,
+      gazeTarget: 'user',
+      speechText: remark.text,
+      priority: 'INTERACTION',
+      priorityScore: 70,
+      durationMs: 2500,
+    });
+  }, [currentStep, totalSteps]);
+
   const handleSelectLanguage = (lang: SupportedLocale) => {
     setLocale(lang);
+    useCompanionStore.getState().triggerReaction({
+      mood: 'curious',
+      expression: 'curious',
+      pose: 'sit',
+      gazeTarget: 'down',
+      speechText: null,
+      priority: 'AMBIENT',
+      priorityScore: 30,
+      durationMs: 800,
+    });
   };
 
   const handleToggleOption = (optionId: string) => {
     if (!currentLifestyleQuestion) return;
+
+    // Subtle reaction without speech spam
+    useCompanionStore.getState().triggerReaction({
+      mood: 'curious',
+      expression: 'curious',
+      pose: 'sit',
+      gazeTarget: 'down',
+      speechText: null,
+      priority: 'AMBIENT',
+      priorityScore: 30,
+      durationMs: 800,
+    });
+
     setSelections(prev => {
       const selected = prev[currentLifestyleQuestion.id] || [];
       if (currentLifestyleQuestion.type === 'single') {
@@ -113,6 +165,11 @@ export default function Survey() {
           onPress={() => finishSurvey(true)}
           style={{ paddingHorizontal: 0, paddingVertical: 0 }}
         />
+      </View>
+
+      {/* Mimi Companion Perch */}
+      <View style={{ alignItems: 'center', marginTop: 2, marginBottom: 4 }}>
+        <CompanionPerch compact />
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.l }}>

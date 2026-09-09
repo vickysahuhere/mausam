@@ -1,15 +1,24 @@
 import React from 'react';
-import { View, Animated } from 'react-native';
+import { View, Animated, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import Svg, { Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop as SvgStop, Line, Rect } from 'react-native-svg';
+import { useRouter } from 'expo-router';
 import { WidgetCard, WidgetProps } from './WidgetCard';
 import { useWidgetData } from './useWidgetData';
 import { Typography } from '../ui/Typography';
 import { Icon } from '../ui/Icon';
+import { Button } from '../ui/Button';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useUnitStore } from '../../store/useUnitStore';
+import { useLocationStore, SavedLocation } from '../../store/useLocationStore';
+import { useCompanionStore } from '../../store/useCompanionStore';
+import { CompanionPerch } from '../companion/CompanionPerch';
 
-export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProps) {
+export const CurrentSummaryWidget = React.memo(function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('current_summary', 'default');
   const theme = useTheme();
+  const convertTemp = useUnitStore((state) => state.convertTemp);
+  const formatWind = useUnitStore((state) => state.formatWind);
+  const temperatureUnit = useUnitStore((state) => state.temperatureUnit);
 
   return (
     <WidgetCard
@@ -26,7 +35,7 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <View style={{ flex: 1, flexShrink: 1, paddingRight: 8 }}>
               <Typography variant="h1" style={{ fontSize: 44, fontWeight: '700', lineHeight: 50 }}>
-                {data.temp}{'\u00B0'}C
+                {convertTemp(data.temp)}{'\u00B0'}{temperatureUnit}
               </Typography>
               <Typography variant="bodyMedium" numberOfLines={2} style={{ fontWeight: '600', marginTop: 2 }}>
                 {data.desc}
@@ -34,10 +43,10 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
             </View>
             <View style={{ alignItems: 'flex-end', paddingTop: 6, flexShrink: 0 }}>
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600' }}>
-                H: {data.high}{'\u00B0'} / L: {data.low}{'\u00B0'}
+                H: {convertTemp(data.high)}{'\u00B0'} / L: {convertTemp(data.low)}{'\u00B0'}
               </Typography>
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 2 }}>
-                Feels like {data.feelsLike}{'\u00B0'}C
+                Feels like {convertTemp(data.feelsLike)}{'\u00B0'}{temperatureUnit}
               </Typography>
             </View>
           </View>
@@ -62,7 +71,7 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
             <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
               <Icon name="wind" size={14} color={theme.colors.primary} />
               <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginLeft: 4, flexShrink: 1 }}>
-                {data.windSpeed} km/h {data.windDirection}
+                {formatWind(data.windSpeed)} {data.windDirection}
               </Typography>
             </View>
           </View>
@@ -70,7 +79,132 @@ export function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProp
       )}
     </WidgetCard>
   );
-}
+});
+
+export const HourlyForecastWidget = React.memo(function HourlyForecastWidget({ id, isCustomizing, onRemove }: WidgetProps) {
+  const { data, loading, error } = useWidgetData<any>('hourly_forecast', 'default');
+  const theme = useTheme();
+  const convertTemp = useUnitStore((state) => state.convertTemp);
+  const hours = data?.hours || [];
+
+  return (
+    <WidgetCard
+      title="Hourly Forecast"
+      iconName="clock"
+      badge="24h"
+      loading={loading}
+      error={error}
+      isCustomizing={isCustomizing}
+      onRemove={onRemove}
+    >
+      {data && (
+        <View>
+          {data.summary && (
+            <Typography
+              variant="caption"
+              color={theme.colors.textSecondary}
+              numberOfLines={1}
+              style={{ fontWeight: '600', marginBottom: 10, marginTop: -2 }}
+            >
+              {data.summary}
+            </Typography>
+          )}
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 8, gap: 8 }}
+          >
+            {hours.map((item: any, idx: number) => {
+              const isNow = item.isCurrentHour;
+              const hasPrecip = typeof item.precipProb === 'number' && item.precipProb >= 10;
+              const tempVal = convertTemp(item.temp);
+
+              const capsuleBg = isNow
+                ? (theme.colors.primary + (theme.isDark ? '28' : '18'))
+                : theme.colors.surfaceSecondary;
+
+              const capsuleBorder = isNow
+                ? theme.colors.primary
+                : theme.colors.border;
+
+              return (
+                <View
+                  key={idx}
+                  style={{
+                    width: 62,
+                    paddingVertical: 10,
+                    paddingHorizontal: 4,
+                    borderRadius: 16,
+                    backgroundColor: capsuleBg,
+                    borderWidth: isNow ? 1.5 : 1,
+                    borderColor: capsuleBorder,
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    minHeight: 102,
+                  }}
+                >
+                  {/* Hour Label */}
+                  <Typography
+                    variant="caption"
+                    color={isNow ? theme.colors.primary : theme.colors.text}
+                    style={{
+                      fontWeight: isNow ? '800' : '600',
+                      fontSize: 11,
+                      letterSpacing: -0.2,
+                    }}
+                  >
+                    {item.time}
+                  </Typography>
+
+                  {/* Weather Icon */}
+                  <View style={{ marginVertical: 4 }}>
+                    <Icon
+                      name={item.iconName || 'sun'}
+                      size={22}
+                      color={isNow ? theme.colors.primary : theme.colors.text}
+                    />
+                  </View>
+
+                  {/* Rain Probability Badge or Spacer */}
+                  {hasPrecip ? (
+                    <Typography
+                      variant="caption"
+                      style={{
+                        fontSize: 10,
+                        fontWeight: '800',
+                        color: '#0284C7',
+                        lineHeight: 12,
+                      }}
+                    >
+                      {item.precipProb}%
+                    </Typography>
+                  ) : (
+                    <View style={{ height: 12 }} />
+                  )}
+
+                  {/* Hourly Temperature */}
+                  <Typography
+                    variant="bodyMedium"
+                    color={theme.colors.text}
+                    style={{
+                      fontWeight: isNow ? '800' : '700',
+                      fontSize: 14,
+                      letterSpacing: -0.3,
+                      marginTop: 2,
+                    }}
+                  >
+                    {tempVal}°
+                  </Typography>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+    </WidgetCard>
+  );
+});
 
 function getAqiColor(aqi: number, themeColors: any): string {
   if (aqi <= 50) return themeColors.success || '#10B981';
@@ -312,6 +446,7 @@ export function PollenWidget({ id, isCustomizing, onRemove }: WidgetProps) {
 export function BestRunHoursWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('best_run_hours', 'default');
   const theme = useTheme();
+  const { convertTemp, temperatureUnit } = useUnitStore();
 
   return (
     <WidgetCard
@@ -354,10 +489,10 @@ export function BestRunHoursWidget({ id, isCustomizing, onRemove }: WidgetProps)
           {/* Sub-telemetry details */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
             <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
-              Morning: ~{data.morningTemp}°C
+              Morning: ~{convertTemp(data.morningTemp)}°{temperatureUnit}
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
-              Evening: ~{data.eveningTemp}°C
+              Evening: ~{convertTemp(data.eveningTemp)}°{temperatureUnit}
             </Typography>
             <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
               Air Score: {data.airScore}
@@ -466,6 +601,7 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
 export function SeaStateWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('sea_state', 'default');
   const theme = useTheme();
+  const { convertTemp, temperatureUnit } = useUnitStore();
 
   return (
     <WidgetCard
@@ -502,7 +638,7 @@ export function SeaStateWidget({ id, isCustomizing, onRemove }: WidgetProps) {
                 }}
               >
                 <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', fontSize: 11 }}>
-                  Water ~{data.waterTemp}°C
+                  Water ~{convertTemp(data.waterTemp)}°{temperatureUnit}
                 </Typography>
               </View>
             </View>
@@ -596,6 +732,7 @@ export function TideTimesWidget({ id, isCustomizing, onRemove }: WidgetProps) {
 export function DestinationWeatherWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('destination_weather', 'default');
   const theme = useTheme();
+  const { convertTemp, temperatureUnit } = useUnitStore();
 
   return (
     <WidgetCard
@@ -612,7 +749,7 @@ export function DestinationWeatherWidget({ id, isCustomizing, onRemove }: Widget
           {data.savedCities?.map((c: any, i: number) => (
             <View key={i} style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
               <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '600' }}>{c.name}</Typography>
-              <Typography variant="h3" color={theme.colors.primary}>{c.temp}{'\u00B0'}C</Typography>
+              <Typography variant="h3" color={theme.colors.primary}>{convertTemp(c.temp)}{'\u00B0'}{temperatureUnit}</Typography>
               <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary}>{c.cond}</Typography>
             </View>
           ))}
@@ -652,6 +789,7 @@ export function PackingTipWidget({ id, isCustomizing, onRemove }: WidgetProps) {
 export function SchoolCommuteWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('school_commute', 'default');
   const theme = useTheme();
+  const { convertTemp, temperatureUnit } = useUnitStore();
 
   return (
     <WidgetCard
@@ -670,7 +808,7 @@ export function SchoolCommuteWidget({ id, isCustomizing, onRemove }: WidgetProps
             <Typography variant="caption" numberOfLines={2} color={theme.colors.textSecondary}>{data.advisory}</Typography>
           </View>
           <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
-            <Typography variant="h3" color={theme.colors.primary}>{data.temp}{'\u00B0'}C</Typography>
+            <Typography variant="h3" color={theme.colors.primary}>{convertTemp(data.temp)}{'\u00B0'}{temperatureUnit}</Typography>
             <Typography variant="caption" color={theme.colors.textSecondary}>Rain: {data.rainChance}</Typography>
           </View>
         </View>
@@ -754,6 +892,7 @@ export function RainTimelineWidget({ id, isCustomizing, onRemove }: WidgetProps)
 export function FrostAlertWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('frost_alert', 'default');
   const theme = useTheme();
+  const { convertTemp, temperatureUnit } = useUnitStore();
 
   return (
     <WidgetCard
@@ -769,7 +908,7 @@ export function FrostAlertWidget({ id, isCustomizing, onRemove }: WidgetProps) {
         <View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Typography variant="bodyMedium" style={{ fontWeight: '600' }}>{data.frostWindow}</Typography>
-            <Typography variant="caption" color={theme.colors.textSecondary}>Min ground ~{data.minGroundTemp}{'\u00B0'}C</Typography>
+            <Typography variant="caption" color={theme.colors.textSecondary}>Min ground ~{convertTemp(data.minGroundTemp)}{'\u00B0'}{temperatureUnit}</Typography>
           </View>
           <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>
             {data.cropSafetyTip}
@@ -906,10 +1045,20 @@ export function VisibilityFogWidget({ id, isCustomizing, onRemove }: WidgetProps
 export function ExtendedForecastWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('extended_forecast', 'default');
   const theme = useTheme();
+  const { convertTemp } = useUnitStore();
 
-  const days = data?.days || [];
-  const minWeek = days.length > 0 ? Math.min(...days.map((d: any) => typeof d.low === 'number' ? d.low : parseInt(d.low, 10) || 15)) : 15;
-  const maxWeek = days.length > 0 ? Math.max(...days.map((d: any) => typeof d.high === 'number' ? d.high : parseInt(d.high, 10) || 30)) : 30;
+  const rawDays = data?.days || [];
+  const days = rawDays.map((d: any) => {
+    const rawLow = typeof d.low === 'number' ? d.low : parseInt(d.low, 10) || 15;
+    const rawHigh = typeof d.high === 'number' ? d.high : parseInt(d.high, 10) || 30;
+    return {
+      ...d,
+      low: convertTemp(rawLow),
+      high: convertTemp(rawHigh),
+    };
+  });
+  const minWeek = days.length > 0 ? Math.min(...days.map((d: any) => d.low)) : 15;
+  const maxWeek = days.length > 0 ? Math.max(...days.map((d: any) => d.high)) : 30;
   const range = Math.max(1, maxWeek - minWeek);
 
   return (
@@ -925,8 +1074,8 @@ export function ExtendedForecastWidget({ id, isCustomizing, onRemove }: WidgetPr
       {data && (
         <View style={{ paddingTop: 2 }}>
           {days.map((d: any, i: number) => {
-            const low = typeof d.low === 'number' ? d.low : parseInt(d.low, 10) || 15;
-            const high = typeof d.high === 'number' ? d.high : parseInt(d.high, 10) || 30;
+            const low = d.low;
+            const high = d.high;
             const isToday = i === 0 || d.day?.toLowerCase().includes('today');
 
             // Percentage positions along the global week range
@@ -1086,3 +1235,227 @@ export function ComfortIndexWidget({ id, isCustomizing, onRemove }: WidgetProps)
     </WidgetCard>
   );
 }
+
+function SecondaryLocationCard({
+  location,
+  onMakePrimary,
+}: {
+  location: SavedLocation;
+  onMakePrimary: () => void;
+}) {
+  const theme = useTheme();
+  const { convertTemp, temperatureUnit } = useUnitStore();
+  const { data, loading } = useWidgetData<any>('current_summary', location.id);
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: theme.shapes.borderRadius.s,
+        backgroundColor: theme.colors.surfaceSecondary,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      }}
+    >
+      <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <Icon name="map-pin" size={14} color={theme.colors.primary} />
+          <Typography variant="bodyMedium" style={{ fontWeight: '700' }} numberOfLines={1}>
+            {location.label}
+          </Typography>
+        </View>
+        <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1}>
+          {data ? data.desc : loading ? 'Fetching conditions...' : 'Saved location'}
+        </Typography>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {data ? (
+          <View style={{ alignItems: 'flex-end' }}>
+            <Typography variant="bodyMedium" style={{ fontWeight: '700' }}>
+              {convertTemp(data.temp)}°{temperatureUnit}
+            </Typography>
+            <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
+              H:{convertTemp(data.high)}° L:{convertTemp(data.low)}°
+            </Typography>
+          </View>
+        ) : loading ? (
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+        ) : null}
+
+        <TouchableOpacity
+          onPress={onMakePrimary}
+          style={{
+            backgroundColor: theme.colors.primary + '18',
+            borderColor: theme.colors.primary,
+            borderWidth: 1,
+            borderRadius: 6,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+          }}
+        >
+          <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
+            Make Primary
+          </Typography>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+export function SecondaryLocationsWidget({ id, isCustomizing, onRemove }: WidgetProps) {
+  const router = useRouter();
+  const theme = useTheme();
+  const locations = useLocationStore((state) => state.locations);
+  const setDefaultLocation = useLocationStore((state) => state.setDefaultLocation);
+
+  const secondaryLocations = locations.filter((l) => !l.isDefault);
+
+  return (
+    <WidgetCard
+      title="Secondary Locations"
+      iconName="map-pin"
+      badge={secondaryLocations.length > 0 ? `${secondaryLocations.length} Saved` : undefined}
+      loading={false}
+      error={null}
+      isCustomizing={isCustomizing}
+      onRemove={onRemove}
+    >
+      {secondaryLocations.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 21,
+              backgroundColor: theme.colors.primary + '15',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <Icon name="compass" size={22} color={theme.colors.primary} />
+          </View>
+          <Typography variant="bodyMedium" style={{ fontWeight: '700', textAlign: 'center' }}>
+            No Secondary Locations
+          </Typography>
+          <Typography
+            variant="caption"
+            color={theme.colors.textSecondary}
+            style={{ textAlign: 'center', marginTop: 4, marginBottom: 12, paddingHorizontal: 16 }}
+          >
+            Add School, Work, College, or your hometown to view live weather side-by-side.
+          </Typography>
+          <Button
+            title="Manage Locations"
+            variant="outline"
+            onPress={() => router.push('/(tabs)/locations')}
+            style={{ paddingHorizontal: 16, paddingVertical: 6 }}
+          />
+        </View>
+      ) : (
+        <View>
+          {secondaryLocations.map((loc) => (
+            <SecondaryLocationCard
+              key={loc.id}
+              location={loc}
+              onMakePrimary={() => setDefaultLocation(loc.id)}
+            />
+          ))}
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/locations')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 6,
+              marginTop: 4,
+              gap: 4,
+            }}
+          >
+            <Icon name="plus" size={14} color={theme.colors.primary} />
+            <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+              Add Another Location
+            </Typography>
+          </TouchableOpacity>
+        </View>
+      )}
+    </WidgetCard>
+  );
+}
+
+export const CompanionCardWidget = React.memo(function CompanionCardWidget({ id, isCustomizing, onRemove }: WidgetProps) {
+  const catMood = useCompanionStore((s) => s.catMood);
+  const catActivity = useCompanionStore((s) => s.catActivity);
+  const name = useCompanionStore((s) => s.name);
+  const isEnabled = useCompanionStore((s) => s.isEnabled);
+  const theme = useTheme();
+
+  if (!isEnabled) {
+    return null;
+  }
+
+  const activityLabels: Record<string, string> = {
+    basking: 'Basking in the warm sun',
+    napping: 'Taking a cozy cat nap',
+    gazing_sky: 'Watching rainfall from shelter',
+    grooming: 'Grooming whiskers and paws',
+    seeking_shelter: 'Hiding safely from storm',
+    shivering: 'Keeping warm from chill',
+    panting: 'Hydrating in the afternoon heat',
+    checking_map: 'Observing travel routes',
+    exercising: 'Active and energetic',
+    parenting: 'Watching over the family',
+    commuting: 'Tracking transit weather',
+    farming: 'Monitoring rainfall and soil',
+    celebrating: 'Celebrating great weather!',
+    resting: 'Perched and observing',
+  };
+
+  const activityText = activityLabels[catActivity] || 'Perched and observing';
+
+  return (
+    <WidgetCard
+      title={`${name} — Weather Companion`}
+      iconName="sun"
+      badge={catMood.toUpperCase()}
+      loading={false}
+      error={null}
+      isCustomizing={isCustomizing}
+      onRemove={onRemove}
+    >
+      <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
+        <CompanionPerch compact />
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: theme.colors.surfaceSecondary,
+            paddingHorizontal: 12,
+            paddingVertical: 5,
+            borderRadius: 14,
+            marginTop: 6,
+            gap: 6,
+          }}
+        >
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: theme.colors.primary,
+            }}
+          />
+          <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', fontSize: 11 }}>
+            {activityText}
+          </Typography>
+        </View>
+      </View>
+    </WidgetCard>
+  );
+});

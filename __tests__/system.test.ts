@@ -193,3 +193,187 @@ test('User Persistence: Profile name, location memory & cloud preferences', asyn
   assert.strictEqual(useLocationStore.getState().getSelectedLocation()?.label, 'Bandra, Mumbai');
 });
 
+test('Unit Store: Temperature & Wind conversion math and formatting', async () => {
+  const { useUnitStore } = await import('../store/useUnitStore');
+
+  // Reset to default C and km/h
+  useUnitStore.getState().setTemperatureUnit('C');
+  useUnitStore.getState().setWindSpeedUnit('km/h');
+
+  assert.strictEqual(useUnitStore.getState().temperatureUnit, 'C');
+  assert.strictEqual(useUnitStore.getState().windSpeedUnit, 'km/h');
+
+  // Pure conversions in C
+  assert.strictEqual(useUnitStore.getState().convertTemp(0), 0);
+  assert.strictEqual(useUnitStore.getState().convertTemp(25), 25);
+  assert.strictEqual(useUnitStore.getState().formatTemp(25), '25°');
+  assert.strictEqual(useUnitStore.getState().formatTemp(25, true), '25°C');
+
+  // Pure conversions in km/h
+  assert.strictEqual(useUnitStore.getState().convertWind(18), 18);
+  assert.strictEqual(useUnitStore.getState().formatWind(18), '18 km/h');
+
+  // Switch to Imperial / Alternative units
+  useUnitStore.getState().setTemperatureUnit('F');
+  useUnitStore.getState().setWindSpeedUnit('m/s');
+
+  assert.strictEqual(useUnitStore.getState().temperatureUnit, 'F');
+  assert.strictEqual(useUnitStore.getState().windSpeedUnit, 'm/s');
+
+  // 0°C -> 32°F
+  assert.strictEqual(useUnitStore.getState().convertTemp(0), 32);
+  // 100°C -> 212°F
+  assert.strictEqual(useUnitStore.getState().convertTemp(100), 212);
+  // 25°C -> 77°F
+  assert.strictEqual(useUnitStore.getState().convertTemp(25), 77);
+  assert.strictEqual(useUnitStore.getState().formatTemp(25), '77°');
+  assert.strictEqual(useUnitStore.getState().formatTemp(25, true), '77°F');
+
+  // 18 km/h -> 5 m/s
+  assert.strictEqual(useUnitStore.getState().convertWind(18), 5);
+  // 36 km/h -> 10 m/s
+  assert.strictEqual(useUnitStore.getState().convertWind(36), 10);
+  assert.strictEqual(useUnitStore.getState().formatWind(18), '5 m/s');
+
+  // Null / undefined safety
+  assert.strictEqual(useUnitStore.getState().formatTemp(null), '--');
+  assert.strictEqual(useUnitStore.getState().formatWind(undefined), '--');
+  assert.strictEqual(useUnitStore.getState().formatWind(0), '0 m/s');
+});
+
+test('Auth Store: Password reset flow (request & confirm)', async () => {
+  const { useAuthStore } = await import('../store/useAuthStore');
+
+  // Request password reset for valid email
+  const reqRes = await useAuthStore.getState().requestPasswordReset('vicky@example.com');
+  assert.strictEqual(reqRes.success, true, 'Request password reset should succeed');
+
+  // Request password reset with empty email should fail
+  const emptyRes = await useAuthStore.getState().requestPasswordReset('');
+  assert.strictEqual(emptyRes.success, false, 'Empty email should fail');
+
+  // Confirm password reset with code and new password
+  const confirmRes = await useAuthStore.getState().confirmPasswordReset(
+    'vicky@example.com',
+    '123456',
+    'newpassword123'
+  );
+  assert.strictEqual(confirmRes.success, true, 'Confirm reset should succeed');
+
+  // Confirm that user session is active and profile is stored
+  assert.strictEqual(useAuthStore.getState().hasSession, true);
+  assert.strictEqual(useAuthStore.getState().user?.email, 'vicky@example.com');
+  assert.strictEqual(useAuthStore.getState().isGuest, false);
+
+  // Short password should fail
+  const shortPassRes = await useAuthStore.getState().confirmPasswordReset(
+    'vicky@example.com',
+    '123456',
+    '123'
+  );
+  assert.strictEqual(shortPassRes.success, false, 'Password under 6 chars should fail');
+});
+
+test('Auth Store: OTP login validation and unregistered email rejection', async () => {
+  const { useAuthStore } = await import('../store/useAuthStore');
+
+  // Invalid email
+  const invalidRes = await useAuthStore.getState().signInWithOtp('invalid-email');
+  assert.strictEqual(invalidRes.success, false);
+  assert.ok(invalidRes.error?.includes('valid email'));
+
+  // Valid format in offline mode
+  const validRes = await useAuthStore.getState().signInWithOtp('user@test.com');
+  assert.strictEqual(validRes.success, true);
+
+  // OTP verify
+  const verifyRes = await useAuthStore.getState().verifyOtp('user@test.com', '123456');
+  assert.strictEqual(verifyRes.success, true);
+  assert.strictEqual(useAuthStore.getState().hasSession, true);
+  assert.strictEqual(useAuthStore.getState().user?.email, 'user@test.com');
+});
+
+test('Layout Store: Default theme is apple-liquid and survey does not override theme', async () => {
+  const { useLayoutStore } = await import('../store/useLayoutStore');
+  useLayoutStore.getState().reset();
+
+  // Fresh install default must be apple-liquid
+  assert.strictEqual(useLayoutStore.getState().activeThemeId, 'apple-liquid');
+
+  // Personalization vector from lifestyle survey
+  const dummyVector = {
+    health: 0.8,
+    fitness: 0.1,
+    beach: 0.05,
+    travel: 0.05,
+    parent: 0,
+    agriculture: 0,
+    commuter: 0,
+    event: 0,
+  };
+
+  useLayoutStore.getState().initializeForUser(dummyVector);
+  // Must STILL be apple-liquid!
+  assert.strictEqual(useLayoutStore.getState().activeThemeId, 'apple-liquid');
+
+  useLayoutStore.getState().reinitializeLayout(dummyVector);
+  // Reinitializing layout from survey completion MUST preserve apple-liquid!
+  assert.strictEqual(useLayoutStore.getState().activeThemeId, 'apple-liquid');
+});
+
+test('Location Store & Secondary Locations: Multi-location structure and primary switching', async () => {
+  const { useLocationStore } = await import('../store/useLocationStore');
+  useLocationStore.getState().reset();
+
+  // Add primary location (Home / Delhi)
+  useLocationStore.getState().addLocation({
+    id: 'loc-home',
+    label: 'Home',
+    lat: 28.6139,
+    lon: 77.209,
+    isDefault: true,
+  });
+
+  // Add secondary locations (Work / Gurgaon, School / Noida)
+  useLocationStore.getState().addLocation({
+    id: 'loc-work',
+    label: 'Work (Gurgaon)',
+    lat: 28.4595,
+    lon: 77.0266,
+    isDefault: false,
+  });
+
+  useLocationStore.getState().addLocation({
+    id: 'loc-school',
+    label: 'School (Noida)',
+    lat: 28.5355,
+    lon: 77.391,
+    isDefault: false,
+  });
+
+  const allLocs = useLocationStore.getState().locations;
+  assert.strictEqual(allLocs.length, 3);
+
+  // Default is Home
+  const primary = allLocs.find((l) => l.isDefault);
+  assert.strictEqual(primary?.id, 'loc-home');
+
+  // Secondary locations
+  const secondaries = allLocs.filter((l) => !l.isDefault);
+  assert.strictEqual(secondaries.length, 2);
+  assert.ok(secondaries.some((l) => l.id === 'loc-work'));
+  assert.ok(secondaries.some((l) => l.id === 'loc-school'));
+
+  // Switch primary to Work
+  useLocationStore.getState().setDefaultLocation('loc-work');
+  const updatedAll = useLocationStore.getState().locations;
+  const newPrimary = updatedAll.find((l) => l.isDefault);
+  assert.strictEqual(newPrimary?.id, 'loc-work');
+
+  // Previous primary (Home) must now be a secondary location
+  const updatedSecondaries = updatedAll.filter((l) => !l.isDefault);
+  assert.strictEqual(updatedSecondaries.length, 2);
+  assert.ok(updatedSecondaries.some((l) => l.id === 'loc-home'));
+});
+
+

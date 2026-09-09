@@ -29,7 +29,7 @@ interface LayoutState {
 export const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
-      activeThemeId: 'custom',
+      activeThemeId: 'apple-liquid',
       layout: [],
       hasInitialized: false,
 
@@ -40,19 +40,17 @@ export const useLayoutStore = create<LayoutState>()(
 
           return {
             hasInitialized: true,
-            activeThemeId: state.hasInitialized && state.activeThemeId !== 'custom'
-              ? state.activeThemeId
-              : getRecommendedTheme(vector),
+            activeThemeId: state.activeThemeId || 'apple-liquid',
             layout: generateInitialLayout(vector),
           };
         }),
 
       reinitializeLayout: (vector) => {
-        set({
+        set((state) => ({
           hasInitialized: true,
-          activeThemeId: getRecommendedTheme(vector),
+          activeThemeId: state.activeThemeId || 'apple-liquid',
           layout: generateInitialLayout(vector),
-        });
+        }));
         const userId = useAuthStore.getState().user?.id || null;
         triggerBackgroundSync(userId);
       },
@@ -91,7 +89,7 @@ export const useLayoutStore = create<LayoutState>()(
       reset: () =>
         set({
           hasInitialized: false,
-          activeThemeId: 'custom',
+          activeThemeId: 'apple-liquid',
           layout: [],
         }),
     }),

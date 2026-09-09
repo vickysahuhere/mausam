@@ -40,6 +40,7 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
 
     // Widgets
     current_summary: 'Current Conditions',
+    hourly_forecast: '24-Hour Forecast',
     aqi_card: 'Air Quality (AQI)',
     uv_index: 'UV Index & Sun Guard',
     pollen_estimate: 'Pollen & Allergens',
@@ -57,6 +58,8 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     visibility_fog: 'Road Visibility & Fog',
     extended_forecast: '5-Day Forecast Outlook',
     comfort_index: 'Thermal Comfort Index',
+    secondary_locations: 'Secondary Locations',
+    companion_card: 'Weather Companion (Mimi)',
 
     // Alerts Screen
     alertsHeader: 'Severe Weather Alerts',
@@ -178,6 +181,7 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
 
     // Widgets
     current_summary: 'वर्तमान मौसम स्थिति',
+    hourly_forecast: '24-घंटे का पूर्वानुमान',
     aqi_card: 'वायु गुणवत्ता (AQI)',
     uv_index: 'यूवी इंडेक्स और धूप सुरक्षा',
     pollen_estimate: 'पराग कण और एलर्जी',
@@ -195,6 +199,8 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     visibility_fog: 'सड़क दृश्यता और कोहरा',
     extended_forecast: '5-दिवसीय मौसम पूर्वानुमान',
     comfort_index: 'थर्मल आराम सूचकांक',
+    secondary_locations: 'द्वितीयक स्थान मौसम',
+    companion_card: 'मौसम साथी (मीमी)',
 
     // Alerts Screen
     alertsHeader: 'गंभीर मौसम चेतावनियाँ',
@@ -316,6 +322,7 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
 
     // Widgets
     current_summary: 'सध्याची हवामान स्थिती',
+    hourly_forecast: '२४-तास हवामान अंदाज',
     aqi_card: 'हवेची गुणवत्ता (AQI)',
     uv_index: 'UV निर्देशांक आणि सूर्य सुरक्षा',
     pollen_estimate: 'परागकण आणि ॲलर्जी',
@@ -333,6 +340,8 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     visibility_fog: 'रस्ता दृश्यमानता आणि धुके',
     extended_forecast: '५-दिवसीय हवामान अंदाज',
     comfort_index: 'उष्णता आराम निर्देशांक',
+    secondary_locations: 'दुय्यम ठिकाणे हवामान',
+    companion_card: 'हवामान साथी (मीमी)',
 
     // Alerts Screen
     alertsHeader: 'गंभीर हवामान इशारे',
@@ -454,6 +463,7 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
 
     // Widgets
     current_summary: 'தற்போதைய நிலை',
+    hourly_forecast: '24-மணிநேர முன்னறிவிப்பு',
     aqi_card: 'காற்று தரம் (AQI)',
     uv_index: 'UV குறியீடு & சூரிய பாதுகாப்பு',
     pollen_estimate: 'மகரந்தம் & ஒவ்வாமை',
@@ -471,6 +481,8 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     visibility_fog: 'சாலை பார்வை & மூடுபனி',
     extended_forecast: '5-நாள் வானிலை முன்னறிவிப்பு',
     comfort_index: 'வெப்ப சௌகரிய குறியீடு',
+    secondary_locations: 'இரண்டாம் நிலை இடங்கள்',
+    companion_card: 'வானிலை துணை (மிமி)',
 
     // Alerts Screen
     alertsHeader: 'வானிலை எச்சரிக்கைகள்',
@@ -592,6 +604,7 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
 
     // Widgets
     current_summary: 'বর্তমান পরিস্থিতি',
+    hourly_forecast: '২৪ ঘণ্টার পূর্বাভাস',
     aqi_card: 'বায়ুর মান (AQI)',
     uv_index: 'UV সূচক ও সূর্য সুরক্ষা',
     pollen_estimate: 'পরাগরেণু ও অ্যালার্জি',
@@ -609,6 +622,8 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     visibility_fog: 'রাস্তার দৃশ্যমানতা ও কুয়াশা',
     extended_forecast: '৫-দিনের আবহাওয়া পূর্বাভাস',
     comfort_index: 'তাপীয় আরাম সূচক',
+    secondary_locations: 'মাধ্যমিক স্থানসমূহ',
+    companion_card: 'আবহাওয়া সঙ্গী (মিমি)',
 
     // Alerts Screen
     alertsHeader: 'আবহাওয়া সতর্কতা',
@@ -730,6 +745,7 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
 
     // Widgets
     current_summary: 'ప్రస్తుత పరిస్థితులు',
+    hourly_forecast: '24-గంటల వాతావరణ అంచనా',
     aqi_card: 'గాలి నాణ్యత (AQI)',
     uv_index: 'UV సూచిక & ఎండ రక్షణ',
     pollen_estimate: 'పరాగ సంపర్కం & అలెర్జీలు',
@@ -747,6 +763,8 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     visibility_fog: 'రహదారి దృశ్యమానత & పొగమంచు',
     extended_forecast: '5-రోజుల వాతావరణ అంచనా',
     comfort_index: 'సౌకర్య సూచిక',
+    secondary_locations: 'ద్వితీయ ప్రాంతాలు',
+    companion_card: 'వాతావరణ సహచరుడు (మిమి)',
 
     // Alerts Screen
     alertsHeader: 'వాతావరణ హెచ్చరికలు',

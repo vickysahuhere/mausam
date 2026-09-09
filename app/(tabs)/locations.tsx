@@ -156,12 +156,24 @@ export default function Locations() {
               </Typography>
             </View>
             {!showAddSearch && (
-              <Button
-                title={t('addNewLocation')}
-                variant="outline"
+              <TouchableOpacity
+                activeOpacity={0.8}
                 onPress={() => setShowAddSearch(true)}
-                style={{ paddingVertical: 6, paddingHorizontal: 12 }}
-              />
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  paddingVertical: 7,
+                  paddingHorizontal: 12,
+                  borderRadius: 20,
+                  backgroundColor: theme.colors.primary,
+                }}
+              >
+                <Icon name="plus" size={13} color={theme.colors.onPrimary || '#FFFFFF'} />
+                <Typography variant="caption" style={{ color: theme.colors.onPrimary || '#FFFFFF', fontWeight: '800', fontSize: 12 }}>
+                  {t('addNewLocation')}
+                </Typography>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -291,28 +303,28 @@ export default function Locations() {
             >
               <Card
                 style={{
-                  marginBottom: theme.spacing.s,
-                  padding: theme.spacing.m,
+                  marginBottom: 10,
+                  padding: 14,
                   borderColor: loc.isDefault ? theme.colors.primary : theme.colors.border,
                   borderWidth: loc.isDefault ? 1.5 : 1,
-                  borderRadius: theme.shapes.borderRadius.l,
+                  borderRadius: 16,
                 }}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <View
                         style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 12,
-                          backgroundColor: loc.isDefault ? theme.colors.primary : theme.colors.surfaceSecondary,
+                          width: 32,
+                          height: 32,
+                          borderRadius: 10,
+                          backgroundColor: loc.isDefault ? theme.colors.primary : (theme.colors.primary + '18'),
                           alignItems: 'center',
                           justifyContent: 'center',
-                          marginRight: 8,
+                          marginRight: 10,
                         }}
                       >
-                        <Icon name="map-pin" size={13} color={loc.isDefault ? '#FFFFFF' : theme.colors.primary} />
+                        <Icon name="map-pin" size={15} color={loc.isDefault ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.primary} />
                       </View>
                       <Typography variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '800', fontSize: 16, flexShrink: 1, letterSpacing: -0.3 }}>
                         {cityName}
@@ -322,25 +334,25 @@ export default function Locations() {
                           style={{
                             marginLeft: 8,
                             paddingHorizontal: 8,
-                            paddingVertical: 2,
-                            borderRadius: theme.shapes.borderRadius.pill,
-                            backgroundColor: theme.colors.primary,
+                            paddingVertical: 2.5,
+                            borderRadius: 6,
+                            backgroundColor: theme.colors.primary + '20',
                             flexShrink: 0,
                           }}
                         >
-                          <Typography variant="caption" style={{ color: theme.colors.onPrimary || '#FFFFFF', fontSize: 10, fontWeight: '800' }}>
+                          <Typography variant="caption" style={{ color: theme.colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.3 }}>
                             {t('primaryBadge')}
                           </Typography>
                         </View>
                       )}
                     </View>
 
-                    <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ fontSize: 12, fontWeight: '500' }}>
+                    <Typography variant="caption" numberOfLines={1} color={theme.colors.textSecondary} style={{ fontSize: 12, fontWeight: '500', marginLeft: 42 }}>
                       {regionName || `${loc.lat.toFixed(2)}°, ${loc.lon.toFixed(2)}°`}
                     </Typography>
                   </View>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     {!loc.isDefault && (
                       <TouchableOpacity
                         onPress={(e) => {
@@ -350,7 +362,7 @@ export default function Locations() {
                         style={{
                           paddingVertical: 6,
                           paddingHorizontal: 10,
-                          borderRadius: theme.shapes.borderRadius.s,
+                          borderRadius: 8,
                           backgroundColor: theme.colors.surfaceSecondary,
                           borderWidth: 1,
                           borderColor: theme.colors.border,
@@ -369,9 +381,12 @@ export default function Locations() {
                           handleDelete(loc);
                         }}
                         style={{
-                          padding: 7,
-                          borderRadius: theme.shapes.borderRadius.s,
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
                           backgroundColor: theme.colors.surfaceSecondary,
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
                         <Icon name="trash" size={15} color={theme.colors.error} />

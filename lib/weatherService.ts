@@ -251,8 +251,24 @@ export interface SchoolCommuteData {
   advisory: string;
 }
 
+export interface HourlyForecastItem {
+  time: string;
+  hour: number;
+  temp: number;
+  precipProb: number;
+  condition: string;
+  iconName: IconName;
+  isCurrentHour?: boolean;
+}
+
+export interface HourlyForecastData {
+  summary: string;
+  hours: HourlyForecastItem[];
+}
+
 export interface NormalizedWeatherData {
   current_summary: CurrentSummaryData;
+  hourly_forecast: HourlyForecastData;
   aqi_card: AqiData;
   uv_index: UvIndexData;
   rain_timeline: RainTimelineData;
@@ -633,6 +649,55 @@ export function normalizeWeatherData(
     ],
   };
 
+  // 24-Hour Continuous Hourly Forecast Strip
+  const hourlyItems: HourlyForecastItem[] = [];
+  const totalHourlyPoints = hourly?.time?.length ?? 0;
+  for (let i = nowHourIndex; i < nowHourIndex + 24 && i < totalHourlyPoints; i++) {
+    const rawTime = hourly.time[i];
+    const dateObj = new Date(rawTime);
+    const h = dateObj.getHours();
+    const isNow = i === nowHourIndex;
+    const timeLabel = isNow ? 'Now' : formatHourShort(rawTime);
+    const itemTemp = Math.round(hourly.temperature_2m[i] ?? current.temperature_2m);
+    const itemProb = Math.round(hourly.precipitation_probability?.[i] ?? 0);
+    const itemCode = hourly.weather_code?.[i] ?? current.weather_code;
+    const isItemDay = h >= 6 && h < 19;
+    const condInfo = mapWeatherCode(itemCode, isItemDay);
+
+    hourlyItems.push({
+      time: timeLabel,
+      hour: h,
+      temp: itemTemp,
+      precipProb: itemProb,
+      condition: condInfo.condition,
+      iconName: condInfo.iconName,
+      isCurrentHour: isNow,
+    });
+  }
+
+  // Fallback if hourly array empty
+  if (hourlyItems.length === 0) {
+    const baseHour = new Date().getHours();
+    for (let offset = 0; offset < 24; offset++) {
+      const h = (baseHour + offset) % 24;
+      const hourStr = offset === 0 ? 'Now' : (h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`);
+      hourlyItems.push({
+        time: hourStr,
+        hour: h,
+        temp: Math.round(current.temperature_2m + Math.sin(offset / 3.5) * 3),
+        precipProb: offset === 3 ? 35 : offset === 4 ? 20 : 0,
+        condition: currentCondition.condition,
+        iconName: currentCondition.iconName,
+        isCurrentHour: offset === 0,
+      });
+    }
+  }
+
+  const hourlyForecast: HourlyForecastData = {
+    summary: maxProb > 30 ? `Precipitation chance around ${maxHour}` : 'Clear conditions continuing through the evening',
+    hours: hourlyItems,
+  };
+
   // Extended forecast (5 days)
   const forecastDays: DailyForecastItem[] = [];
   const daysCount = Math.min(5, daily?.time?.length ?? 0);
@@ -861,6 +926,7 @@ export function normalizeWeatherData(
 
   return {
     current_summary: currentSummary,
+    hourly_forecast: hourlyForecast,
     aqi_card: aqiCard,
     uv_index: uvIndex,
     rain_timeline: rainTimeline,
@@ -889,8 +955,15 @@ const inMemoryCache = new Map<string, { data: NormalizedWeatherData; timestamp: 
 const inFlightRequests = new Map<string, Promise<NormalizedWeatherData>>();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+function sanitizeCoordinates(lat: number, lon: number): { safeLat: number; safeLon: number } {
+  const safeLat = typeof lat === 'number' && Number.isFinite(lat) ? Math.max(-90, Math.min(90, lat)) : 28.61;
+  const safeLon = typeof lon === 'number' && Number.isFinite(lon) ? Math.max(-180, Math.min(180, lon)) : 77.20;
+  return { safeLat, safeLon };
+}
+
 function getCoordinateKey(lat: number, lon: number): string {
-  return `weather_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+  const { safeLat, safeLon } = sanitizeCoordinates(lat, lon);
+  return `weather_${safeLat.toFixed(2)}_${safeLon.toFixed(2)}`;
 }
 
 /**
@@ -901,7 +974,8 @@ export async function getCachedWeather(
   lat: number,
   lon: number
 ): Promise<{ data: NormalizedWeatherData; isExpired: boolean } | null> {
-  const key = getCoordinateKey(lat, lon);
+  const { safeLat, safeLon } = sanitizeCoordinates(lat, lon);
+  const key = getCoordinateKey(safeLat, safeLon);
 
   // 1. Check in-memory cache
   const memoryCached = inMemoryCache.get(key);
@@ -934,7 +1008,8 @@ export async function getWeatherData(
   lon: number,
   options?: { forceRefresh?: boolean }
 ): Promise<NormalizedWeatherData> {
-  const key = getCoordinateKey(lat, lon);
+  const { safeLat, safeLon } = sanitizeCoordinates(lat, lon);
+  const key = getCoordinateKey(safeLat, safeLon);
 
   // 1. Check in-memory session cache (unless forceRefresh requested)
   if (!options?.forceRefresh) {
@@ -1028,19 +1103,26 @@ export async function getWeatherData(
         const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,european_aqi,us_aqi&timezone=auto`;
         const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period&hourly=wave_height,wave_direction,wave_period&forecast_days=2`;
 
-        const [forecastRes, aqiRes, marineRes] = await Promise.all([
-          fetch(forecastUrl),
-          fetch(aqiUrl).catch(() => null),
-          fetch(marineUrl).catch(() => null),
-        ]);
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 10000);
 
-        if (!forecastRes.ok) {
-          throw new Error(`Open-Meteo request failed: ${forecastRes.status}`);
+        try {
+          const [forecastRes, aqiRes, marineRes] = await Promise.all([
+            fetch(forecastUrl, { signal: abortController.signal }),
+            fetch(aqiUrl, { signal: abortController.signal }).catch(() => null),
+            fetch(marineUrl, { signal: abortController.signal }).catch(() => null),
+          ]);
+
+          if (!forecastRes.ok) {
+            throw new Error(`Open-Meteo request failed: ${forecastRes.status}`);
+          }
+
+          forecastJson = await forecastRes.json();
+          aqiJson = aqiRes && aqiRes.ok ? await aqiRes.json() : null;
+          marineJson = marineRes && marineRes.ok ? await marineRes.json() : null;
+        } finally {
+          clearTimeout(timeoutId);
         }
-
-        forecastJson = await forecastRes.json();
-        aqiJson = aqiRes && aqiRes.ok ? await aqiRes.json() : null;
-        marineJson = marineRes && marineRes.ok ? await marineRes.json() : null;
       }
 
       const normalized = normalizeWeatherData(forecastJson, aqiJson, marineJson);

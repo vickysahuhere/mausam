@@ -363,10 +363,14 @@ const LOCALITY_DATABASE: GeocodedLocation[] = [
 // Default Provider implementing the clean search interface with Open-Meteo Geocoding fallback
 class HybridLocalityProvider implements LocationSearchProvider {
   async search(query: string): Promise<GeocodedLocation[]> {
-    if (!query || query.trim().length < 2) return [];
-    const q = query.toLowerCase().trim();
+    const sanitized = (query || '').trim().slice(0, 60).replace(/[\x00-\x1F\x7F<>\"'%&;]/g, '');
+    if (sanitized.length < 2) {
+      return [];
+    }
 
-    // 1. Search local curated database (instant response)
+    const q = sanitized.toLowerCase();
+
+    // 1. Search local curated locality database
     const localMatches = LOCALITY_DATABASE.filter(
       (loc) =>
         loc.name.toLowerCase().includes(q) ||
@@ -379,28 +383,44 @@ class HybridLocalityProvider implements LocationSearchProvider {
       return localMatches.slice(0, 10);
     }
 
-    // 2. Fetch from Open-Meteo Geocoding API if online
+    // 2. Fetch from Open-Meteo Geocoding API if online (with 5-second timeout guard)
     try {
-      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=6&language=en&format=json`;
-      const res = await fetch(url);
+      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(sanitized)}&count=6&language=en&format=json`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (data.results && Array.isArray(data.results)) {
-          const apiMatches: GeocodedLocation[] = data.results.map((r: any) => {
-            const parts = [r.admin2 || r.name, r.admin1, r.country].filter(Boolean);
-            const hierarchy = parts.join(', ');
-            return {
-              id: `om-${r.id}`,
-              name: r.name,
-              locality: r.admin2,
-              city: r.admin1 || r.name,
-              state: r.admin1 || '',
-              country: r.country || 'India',
-              displayName: hierarchy ? `${r.name}, ${hierarchy}` : r.name,
-              lat: r.latitude,
-              lon: r.longitude,
-            };
-          });
+          const apiMatches: GeocodedLocation[] = data.results
+            .filter(
+              (r: any) =>
+                typeof r.latitude === 'number' &&
+                typeof r.longitude === 'number' &&
+                Number.isFinite(r.latitude) &&
+                Number.isFinite(r.longitude) &&
+                r.latitude >= -90 &&
+                r.latitude <= 90 &&
+                r.longitude >= -180 &&
+                r.longitude <= 180
+            )
+            .map((r: any) => {
+              const parts = [r.admin2 || r.name, r.admin1, r.country].filter(Boolean);
+              const hierarchy = parts.join(', ');
+              return {
+                id: `om-${r.id}`,
+                name: r.name,
+                locality: r.admin2,
+                city: r.admin1 || r.name,
+                state: r.admin1 || '',
+                country: r.country || 'India',
+                displayName: hierarchy ? `${r.name}, ${hierarchy}` : r.name,
+                lat: r.latitude,
+                lon: r.longitude,
+              };
+            });
 
           // Merge local and API matches avoiding duplicate coordinates
           const combined = [...localMatches];
@@ -416,7 +436,7 @@ class HybridLocalityProvider implements LocationSearchProvider {
         }
       }
     } catch {
-      // Fall back to local matches gracefully
+      // Fall back to local matches gracefully on timeout or network error
     }
 
     return localMatches.slice(0, 10);

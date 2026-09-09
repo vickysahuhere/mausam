@@ -35,6 +35,7 @@ export function generateInitialLayout(vector: Record<Persona, number> | null): A
 
   // Baseline widgets for custom/skipped survey or evenly distributed answers
   const defaultWidgetTypes = [
+    'hourly_forecast',
     'rain_timeline',
     'extended_forecast',
     'aqi_card',
