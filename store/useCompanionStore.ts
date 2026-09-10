@@ -20,11 +20,38 @@ import { CatMood, CatActivity } from '../lib/cat/catTypes';
 import { catSoundManager } from '../lib/cat/catSoundManager';
 import { CatStateEngine } from '../lib/cat/catStateEngine';
 import { WeatherContextData } from '../lib/cat/catMicroAdvice';
+import { haptics } from '../lib/haptics';
 
 const STORAGE_KEY = '@mausam_companion_storage_v1';
 const SOUND_STORAGE_KEY = '@mausam_cat_sound_enabled';
 const REACTIONS_STORAGE_KEY = '@mausam_cat_reactions_enabled';
 let activeTimerId: any = null;
+
+let debouncePersistTimeout: any = null;
+function schedulePersistCompanion(data: {
+  isEnabled: boolean;
+  name: string;
+  pettedCount: number;
+  treatsGiven: number;
+  affinityLevel: number;
+}) {
+  if (debouncePersistTimeout) {
+    clearTimeout(debouncePersistTimeout);
+  }
+  debouncePersistTimeout = setTimeout(async () => {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          ...data,
+          lastSessionTimestamp: Date.now(),
+        })
+      );
+    } catch {
+      // Non-blocking
+    }
+  }, 400);
+}
 
 interface CompanionStoreState {
   isEnabled: boolean;
@@ -407,6 +434,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     if (soundEnabled) {
       catSoundManager.playPurr();
     }
+    haptics.felinePurr();
 
     let speech: string | null = null;
     if (newCount % 5 === 0) {
@@ -430,22 +458,14 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
     companionEvents.emit('user_pet_cat', undefined);
 
-    try {
-      const state = get();
-      AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          isEnabled: state.isEnabled,
-          name: state.name,
-          pettedCount: newCount,
-          treatsGiven: state.treatsGiven,
-          affinityLevel: newAffinity,
-          lastSessionTimestamp: Date.now(),
-        })
-      );
-    } catch {
-      // Non-blocking
-    }
+    const state = get();
+    schedulePersistCompanion({
+      isEnabled: state.isEnabled,
+      name: state.name,
+      pettedCount: newCount,
+      treatsGiven: state.treatsGiven,
+      affinityLevel: newAffinity,
+    });
   },
 
   feedCat: () => {
@@ -477,6 +497,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     if (soundEnabled) {
       catSoundManager.playChirp();
     }
+    haptics.notificationSuccess();
 
     get().triggerReaction({
       mood: 'happy',
@@ -493,22 +514,14 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
     companionEvents.emit('user_feed_cat', undefined);
 
-    try {
-      const state = get();
-      AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          isEnabled: state.isEnabled,
-          name: state.name,
-          pettedCount: state.pettedCount,
-          treatsGiven: newTreats,
-          affinityLevel: newAffinity,
-          lastSessionTimestamp: Date.now(),
-        })
-      );
-    } catch {
-      // Non-blocking
-    }
+    const state = get();
+    schedulePersistCompanion({
+      isEnabled: state.isEnabled,
+      name: state.name,
+      pettedCount: state.pettedCount,
+      treatsGiven: newTreats,
+      affinityLevel: newAffinity,
+    });
   },
 
   tapCat: () => {
@@ -585,6 +598,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     if (soundEnabled) {
       catSoundManager.playMeow();
     }
+    haptics.impactLight();
 
     if (tapCount === 1) {
       get().triggerReaction({
@@ -625,6 +639,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     if (soundEnabled) {
       catSoundManager.playPurr();
     }
+    haptics.felinePurr();
 
     const cuddleReaction = CatStateEngine.computeInteractionReaction('long_press');
     get().triggerReaction({

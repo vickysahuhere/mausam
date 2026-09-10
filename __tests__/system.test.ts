@@ -15,6 +15,8 @@ import { buildPersonaVector, generateInitialLayout } from '../lib/personaEngine'
 import { comfortIndex, frostAlert, douglasSeaScale } from '../lib/derived';
 import { TRANSLATIONS, SUPPORTED_LOCALES } from '../lib/i18n';
 import { WIDGET_REGISTRY } from '../lib/widgetRegistry';
+import { calculateSolarTimes, calculateMoonPhase } from '../lib/solarAlmanac';
+import { RateLimiter } from '../lib/rateLimiter';
 
 test('Persona Engine: Vector normalization', () => {
   // Test single response
@@ -375,5 +377,43 @@ test('Location Store & Secondary Locations: Multi-location structure and primary
   assert.strictEqual(updatedSecondaries.length, 2);
   assert.ok(updatedSecondaries.some((l) => l.id === 'loc-home'));
 });
+
+test('Solar Almanac: Astronomical ephemeris calculation', () => {
+  // Test New Delhi coordinates on vernal equinox
+  const testDate = new Date('2026-03-20T12:00:00Z');
+  const solar = calculateSolarTimes(28.6139, 77.209, testDate);
+
+  assert.ok(solar.sunrise instanceof Date, 'Sunrise should be a valid Date');
+  assert.ok(solar.sunset instanceof Date, 'Sunset should be a valid Date');
+  assert.ok(solar.sunset.getTime() > solar.sunrise.getTime(), 'Sunset must be after sunrise');
+  assert.ok(solar.daylightMinutes > 600 && solar.daylightMinutes < 800, 'Daylight duration should be ~12 hours near equinox');
+  assert.ok(typeof solar.daylightProgressPercent === 'number', 'Progress percent must be numeric');
+  assert.ok(typeof solar.solarAltitudeDegrees === 'number', 'Solar altitude must be numeric');
+
+  // Moon Phase test
+  const moon = calculateMoonPhase(testDate);
+  assert.ok(moon.phaseValue >= 0 && moon.phaseValue <= 1, 'Phase value must be normalized between 0 and 1');
+  assert.ok(moon.illuminationPercent >= 0 && moon.illuminationPercent <= 100, 'Illumination must be between 0 and 100%');
+  assert.ok(typeof moon.phaseName === 'string' && moon.phaseName.length > 0, 'Phase name must be a non-empty string');
+  assert.ok(typeof moon.emoji === 'string', 'Phase emoji must be present');
+});
+
+test('Rate Limiter: Token bucket burst and refill constraints', () => {
+  const limiter = new RateLimiter();
+  const testKey = 'unit_test_resource';
+
+  // Capacity 3 tokens, 1 refill/sec
+  assert.ok(limiter.tryAcquire(testKey, 3, 1), 'First token should be allowed');
+  assert.ok(limiter.tryAcquire(testKey, 3, 1), 'Second token should be allowed');
+  assert.ok(limiter.tryAcquire(testKey, 3, 1), 'Third token should be allowed');
+
+  // Fourth token in same millisecond exceeds burst capacity of 3
+  assert.strictEqual(limiter.tryAcquire(testKey, 3, 1), false, 'Exceeding burst capacity must return false');
+
+  // Resetting clears bucket
+  limiter.reset(testKey);
+  assert.ok(limiter.tryAcquire(testKey, 3, 1), 'Token should be available after reset');
+});
+
 
 

@@ -12,6 +12,7 @@ import { useUnitStore } from '../../store/useUnitStore';
 import { useLocationStore, SavedLocation } from '../../store/useLocationStore';
 import { useCompanionStore } from '../../store/useCompanionStore';
 import { CompanionPerch } from '../companion/CompanionPerch';
+import { calculateSolarTimes, calculateMoonPhase } from '../../lib/solarAlmanac';
 
 export const CurrentSummaryWidget = React.memo(function CurrentSummaryWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('current_summary', 'default');
@@ -131,6 +132,9 @@ export const HourlyForecastWidget = React.memo(function HourlyForecastWidget({ i
               return (
                 <View
                   key={idx}
+                  accessible={true}
+                  accessibilityRole="text"
+                  accessibilityLabel={`Forecast for ${item.time}: ${tempVal} degrees${hasPrecip ? `, ${item.precipProb} percent chance of rain` : ''}`}
                   style={{
                     width: 62,
                     paddingVertical: 10,
@@ -152,6 +156,7 @@ export const HourlyForecastWidget = React.memo(function HourlyForecastWidget({ i
                       fontWeight: isNow ? '800' : '600',
                       fontSize: 11,
                       letterSpacing: -0.2,
+                      fontVariant: ['tabular-nums'],
                     }}
                   >
                     {item.time}
@@ -175,6 +180,7 @@ export const HourlyForecastWidget = React.memo(function HourlyForecastWidget({ i
                         fontWeight: '800',
                         color: '#0284C7',
                         lineHeight: 12,
+                        fontVariant: ['tabular-nums'],
                       }}
                     >
                       {item.precipProb}%
@@ -192,6 +198,7 @@ export const HourlyForecastWidget = React.memo(function HourlyForecastWidget({ i
                       fontSize: 14,
                       letterSpacing: -0.3,
                       marginTop: 2,
+                      fontVariant: ['tabular-nums'],
                     }}
                   >
                     {tempVal}°
@@ -507,70 +514,116 @@ export function BestRunHoursWidget({ id, isCustomizing, onRemove }: WidgetProps)
 export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps) {
   const { data, loading, error } = useWidgetData<any>('sunrise_sunset', 'default');
   const theme = useTheme();
+  const locations = useLocationStore((state) => state.locations);
+  const activeLoc = locations.find((l) => l.isDefault) || locations[0];
+  const lat = activeLoc?.lat ?? 28.61;
+  const lon = activeLoc?.lon ?? 77.20;
 
-  // Calculate sun position along daylight curve
-  const currentHour = new Date().getHours() + new Date().getMinutes() / 60;
-  const isDay = currentHour >= 6 && currentHour <= 18.5;
-  const dayProgress = Math.max(0, Math.min(1, (currentHour - 6) / 12.5));
+  const solar = calculateSolarTimes(lat, lon);
+  const moon = calculateMoonPhase();
 
-  // Parametric parabolic coordinates for 240x60 viewBox
-  const sunX = 20 + dayProgress * 200;
-  const sunY = 50 - 42 * Math.sin(Math.PI * dayProgress);
+  const isDay = solar.isDaylight;
+  const progressRatio = isDay
+    ? solar.daylightProgressPercent / 100
+    : Math.max(0.1, Math.min(0.9, moon.phaseValue));
+
+  // Parametric parabolic coordinates for 240x68 viewBox
+  const nodeX = 20 + Math.max(0, Math.min(1, progressRatio)) * 200;
+  const nodeY = 50 - 42 * Math.sin(Math.PI * Math.max(0, Math.min(1, progressRatio)));
+
+  const badgeText = isDay
+    ? (solar.isGoldenHour ? '✨ Golden Hour' : `${solar.daylightProgressPercent}% Daylight`)
+    : `${moon.emoji} ${moon.illuminationPercent}% lit`;
 
   return (
     <WidgetCard
-      title="Sun Track & Daylight"
-      iconName="sun"
-      badge={data?.daylightDuration}
+      title={isDay ? "Sun Track & Daylight" : "Moon & Celestial Track"}
+      iconName={isDay ? "sun" : "moon"}
+      badge={badgeText}
       loading={loading}
       error={error}
       isCustomizing={isCustomizing}
       onRemove={onRemove}
     >
       {data && (
-        <View>
-          {/* SVG Daylight Horizon Arc */}
+        <View
+          accessible={true}
+          accessibilityRole="summary"
+          accessibilityLabel={
+            isDay
+              ? `Daylight track: ${solar.daylightProgressPercent} percent complete. Sunrise at ${data.sunrise}, sunset at ${data.sunset}.`
+              : `Moon track: ${moon.phaseName}, ${moon.illuminationPercent} percent illuminated. Next sunrise at ${data.sunrise}.`
+          }
+        >
+          {/* SVG Celestial Horizon Arc */}
           <View style={{ alignItems: 'center', marginVertical: 4 }}>
             <Svg width="100%" height="68" viewBox="0 0 240 68">
               <Defs>
-                <SvgLinearGradient id="sunArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <SvgStop offset="0%" stopColor="#F59E0B" stopOpacity="0.4" />
-                  <SvgStop offset="50%" stopColor="#EAB308" stopOpacity="1" />
-                  <SvgStop offset="100%" stopColor="#F97316" stopOpacity="0.4" />
+                <SvgLinearGradient id="celestialArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <SvgStop
+                    offset="0%"
+                    stopColor={isDay ? '#F59E0B' : '#6366F1'}
+                    stopOpacity={0.35}
+                  />
+                  <SvgStop
+                    offset="50%"
+                    stopColor={isDay ? '#EAB308' : '#818CF8'}
+                    stopOpacity={0.95}
+                  />
+                  <SvgStop
+                    offset="100%"
+                    stopColor={isDay ? '#F97316' : '#A5B4FC'}
+                    stopOpacity={0.35}
+                  />
                 </SvgLinearGradient>
               </Defs>
 
               {/* Horizon Line */}
-              <Line x1="10" y1="52" x2="230" y2="52" stroke={theme.colors.border} strokeWidth="1.5" strokeDasharray="3 3" />
+              <Line
+                x1="10"
+                y1="52"
+                x2="230"
+                y2="52"
+                stroke={theme.colors.border}
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+              />
 
-              {/* Parabolic Solar Curve */}
+              {/* Parabolic Celestial Curve */}
               <Path
                 d="M 20 52 Q 120 4 220 52"
                 fill="none"
-                stroke="url(#sunArcGrad)"
+                stroke="url(#celestialArcGrad)"
                 strokeWidth="2.5"
               />
 
-              {/* Sun Position Node */}
-              {isDay && (
+              {/* Celestial Body Node */}
+              {isDay ? (
                 <>
                   {/* Glowing Solar Aura */}
-                  <Circle cx={sunX} cy={sunY} r="9" fill="#FBBF24" opacity="0.3" />
+                  <Circle cx={nodeX} cy={nodeY} r="10" fill="#FBBF24" opacity={0.32} />
                   {/* Sun Core */}
-                  <Circle cx={sunX} cy={sunY} r="5" fill="#F59E0B" stroke="#FFFFFF" strokeWidth="1.5" />
+                  <Circle cx={nodeX} cy={nodeY} r="5.5" fill="#F59E0B" stroke="#FFFFFF" strokeWidth="1.5" />
+                </>
+              ) : (
+                <>
+                  {/* Glowing Lunar Aura */}
+                  <Circle cx={nodeX} cy={nodeY} r="9" fill="#818CF8" opacity={0.35} />
+                  {/* Moon Core */}
+                  <Circle cx={nodeX} cy={nodeY} r="5" fill="#E0E7FF" stroke="#C7D2FE" strokeWidth="1.5" />
                 </>
               )}
             </Svg>
           </View>
 
-          {/* Times Grid */}
+          {/* Times & Milestones Grid */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
             <View style={{ alignItems: 'flex-start' }}>
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11, fontWeight: '600' }}>
-                First Light
+                {isDay ? 'First Light' : 'Moon Phase'}
               </Typography>
-              <Typography variant="bodyMedium" style={{ fontWeight: '700', fontSize: 13, marginTop: 1 }}>
-                {data.firstLight}
+              <Typography variant="bodyMedium" style={{ fontWeight: '700', fontSize: 13, marginTop: 1, fontVariant: ['tabular-nums'] }}>
+                {isDay ? data.firstLight : `${moon.emoji} ${moon.phaseName}`}
               </Typography>
             </View>
 
@@ -578,7 +631,16 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11, fontWeight: '600' }}>
                 Sunrise
               </Typography>
-              <Typography variant="bodyMedium" style={{ fontWeight: '700', fontSize: 13, marginTop: 1, color: '#F59E0B' }}>
+              <Typography
+                variant="bodyMedium"
+                style={{
+                  fontWeight: '700',
+                  fontSize: 13,
+                  marginTop: 1,
+                  color: '#F59E0B',
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
                 {data.sunrise}
               </Typography>
             </View>
@@ -587,7 +649,16 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
               <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11, fontWeight: '600' }}>
                 Sunset
               </Typography>
-              <Typography variant="bodyMedium" style={{ fontWeight: '700', fontSize: 13, marginTop: 1, color: '#F97316' }}>
+              <Typography
+                variant="bodyMedium"
+                style={{
+                  fontWeight: '700',
+                  fontSize: 13,
+                  marginTop: 1,
+                  color: '#F97316',
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
                 {data.sunset}
               </Typography>
             </View>

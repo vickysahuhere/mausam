@@ -529,15 +529,36 @@ export function normalizeWeatherData(
   airQuality?: OpenMeteoAirQualityResponse | null,
   marine?: OpenMeteoMarineResponse | null
 ): NormalizedWeatherData {
-  const current = forecast.current;
-  const daily = forecast.daily;
-  const hourly = forecast.hourly;
+  const safeCurrent = forecast?.current ?? {
+    temperature_2m: 22,
+    relative_humidity_2m: 50,
+    apparent_temperature: 22,
+    is_day: 1,
+    precipitation: 0,
+    weather_code: 0,
+    wind_speed_10m: 10,
+    wind_direction_10m: 180,
+  };
+  const current = {
+    temperature_2m: Number.isFinite(safeCurrent.temperature_2m) ? safeCurrent.temperature_2m : 22,
+    relative_humidity_2m: Number.isFinite(safeCurrent.relative_humidity_2m) ? safeCurrent.relative_humidity_2m : 50,
+    apparent_temperature: Number.isFinite(safeCurrent.apparent_temperature) ? safeCurrent.apparent_temperature : 22,
+    is_day: safeCurrent.is_day ?? 1,
+    precipitation: Number.isFinite(safeCurrent.precipitation) ? safeCurrent.precipitation : 0,
+    weather_code: Number.isFinite(safeCurrent.weather_code) ? safeCurrent.weather_code : 0,
+    wind_speed_10m: Number.isFinite(safeCurrent.wind_speed_10m) ? safeCurrent.wind_speed_10m : 10,
+    wind_direction_10m: Number.isFinite(safeCurrent.wind_direction_10m) ? safeCurrent.wind_direction_10m : 180,
+  };
+  const daily = forecast?.daily ?? ({} as any);
+  const hourly = forecast?.hourly ?? ({} as any);
 
   const currentCondition = mapWeatherCode(current.weather_code, current.is_day !== 0);
 
   // High / Low for today
-  const todayHigh = Math.round(daily?.temperature_2m_max?.[0] ?? current.temperature_2m);
-  const todayLow = Math.round(daily?.temperature_2m_min?.[0] ?? (current.temperature_2m - 4));
+  const rawHigh = daily?.temperature_2m_max?.[0];
+  const rawLow = daily?.temperature_2m_min?.[0];
+  const todayHigh = Math.round(Number.isFinite(rawHigh) ? rawHigh : current.temperature_2m);
+  const todayLow = Math.round(Number.isFinite(rawLow) ? rawLow : (current.temperature_2m - 4));
 
   // Current summary
   const currentSummary: CurrentSummaryData = {

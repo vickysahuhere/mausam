@@ -12,6 +12,7 @@ import { CurrentSummaryData, AqiData } from '../../lib/weatherService';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { useUnitStore } from '../../store/useUnitStore';
 import { useAnimationStore } from '../../store/useAnimationStore';
+import { haptics } from '../../lib/haptics';
 
 interface Props {
   locationName: string;
@@ -297,7 +298,11 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
           {/* Hero Temperature */}
           <TouchableOpacity
             activeOpacity={0.8}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={`Current temperature ${temp} degrees, ${desc}`}
             onPress={() => {
+              haptics.impactLight();
               useCompanionStore.getState().incrementTempTapCount();
               companionEvents.emit('temperature_card_tapped', {
                 temp: typeof temp === 'number' ? temp : 26,
@@ -313,6 +318,7 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
                 lineHeight: 82,
                 letterSpacing: -2.5,
                 color: theme.colors.text,
+                fontVariant: ['tabular-nums'],
               }}
             >
               {temp}
@@ -406,6 +412,9 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
       >
         {/* Humidity Card */}
         <View
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={`${t('humidityLabel')}: ${humidity} percent`}
           style={{
             flex: 1,
             alignItems: 'center',
@@ -423,13 +432,16 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
               {t('humidityLabel')}
             </Typography>
           </View>
-          <Typography variant="bodyMedium" color={theme.colors.text} style={{ fontWeight: '800', fontSize: 14 }}>
+          <Typography variant="bodyMedium" color={theme.colors.text} style={{ fontWeight: '800', fontSize: 14, fontVariant: ['tabular-nums'] }}>
             {humidity}%
           </Typography>
         </View>
 
         {/* Wind Speed Card */}
         <View
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={`Wind speed: ${formattedWind} ${windDir}`}
           style={{
             flex: 1,
             alignItems: 'center',
@@ -447,13 +459,16 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
               {windDir || 'Wind'}
             </Typography>
           </View>
-          <Typography variant="bodyMedium" color={theme.colors.text} numberOfLines={1} style={{ fontWeight: '800', fontSize: 14 }}>
+          <Typography variant="bodyMedium" color={theme.colors.text} numberOfLines={1} style={{ fontWeight: '800', fontSize: 14, fontVariant: ['tabular-nums'] }}>
             {formattedWind}
           </Typography>
         </View>
 
         {/* Air Quality (AQI) Card */}
         <View
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={`${t('aqiLabel')}: ${aqi ? aqi.aqi : 75}, ${aqi ? aqi.status : 'Moderate'}`}
           style={{
             flex: 1,
             alignItems: 'center',
@@ -471,7 +486,7 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
               {t('aqiLabel')}
             </Typography>
           </View>
-          <Typography variant="bodyMedium" color={aqiTextColor} numberOfLines={1} style={{ fontWeight: '800', fontSize: 14 }}>
+          <Typography variant="bodyMedium" color={aqiTextColor} numberOfLines={1} style={{ fontWeight: '800', fontSize: 14, fontVariant: ['tabular-nums'] }}>
             {aqi ? aqi.aqi : 75} <Typography variant="caption" color={aqiTextColor} style={{ fontWeight: '600', fontSize: 10.5 }}>{aqi ? aqi.status : 'Mod'}</Typography>
           </Typography>
         </View>

@@ -8,6 +8,7 @@ export type IconName =
   | 'locations'
   | 'me'
   | 'sun'
+  | 'moon'
   | 'cloud'
   | 'rain'
   | 'wind'
@@ -120,6 +121,19 @@ export function Icon({ name, size = 22, color = '#000000', strokeWidth = 2 }: Ic
           <Line x1="21" y1="12" x2="23" y2="12" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
           <Line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
           <Line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case 'moon':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </Svg>
       );
 

@@ -6,6 +6,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { Icon } from '../../components/ui/Icon';
 import { companionEvents } from '../../lib/companion/companionEvents';
+import { haptics } from '../../lib/haptics';
 
 export default function TabsLayout() {
   const theme = useTheme();
@@ -24,6 +25,9 @@ export default function TabsLayout() {
           if (routeName) {
             companionEvents.emit('screen_focused', { screenName: routeName });
           }
+        },
+        tabPress: () => {
+          haptics.selection();
         },
       }}
       screenOptions={{

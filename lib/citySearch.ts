@@ -1,3 +1,5 @@
+import { globalRateLimiter } from './rateLimiter';
+
 // Extensible Location Search Provider interface.
 // Allows plugging in Open-Meteo Geocoding, Nominatim, or IMD geocoding in Phase 4
 // without modifying UI components.
@@ -383,8 +385,13 @@ class HybridLocalityProvider implements LocationSearchProvider {
       return localMatches.slice(0, 10);
     }
 
-    // 2. Fetch from Open-Meteo Geocoding API if online (with 5-second timeout guard)
+    // 2. Fetch from Open-Meteo Geocoding API if online and rate limit permits
     try {
+      // Check rate limiter: max 6 burst queries, refill 2 per sec
+      if (!globalRateLimiter.tryAcquire('city_geocoding_api', 6, 2)) {
+        return localMatches.slice(0, 10);
+      }
+
       const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(sanitized)}&count=6&language=en&format=json`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
