@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FFBD59",
+        "backgroundColor": "#B4B4B4",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -26,9 +26,15 @@
     "plugins": [
       "expo-router",
       [
+        "expo-font",
+        {
+          "fonts": ["./assets/fonts/KinderChildKawaiiBubble-WpnAz.otf"]
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFBD59",
+          "backgroundColor": "#B4B4B4",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160
         }

@@ -77,7 +77,7 @@ export default function Splash() {
   }, [router]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFBD59' }}>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#B4B4B4' }}>
       <View
         style={{
           width: 96,
@@ -98,7 +98,7 @@ export default function Splash() {
           resizeMode="cover"
         />
       </View>
-      <ActivityIndicator size="small" color="#D9381E" />
+      <ActivityIndicator size="small" color="#1C1C1E" />
     </View>
   );
 }

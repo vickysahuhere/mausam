@@ -17,6 +17,7 @@ import { TRANSLATIONS, SUPPORTED_LOCALES } from '../lib/i18n';
 import { WIDGET_REGISTRY } from '../lib/widgetRegistry';
 import { calculateSolarTimes, calculateMoonPhase } from '../lib/solarAlmanac';
 import { RateLimiter } from '../lib/rateLimiter';
+import { normalizeWeatherData, WeatherServiceError } from '../lib/weatherService';
 
 test('Persona Engine: Vector normalization', () => {
   // Test single response
@@ -413,6 +414,75 @@ test('Rate Limiter: Token bucket burst and refill constraints', () => {
   // Resetting clears bucket
   limiter.reset(testKey);
   assert.ok(limiter.tryAcquire(testKey, 3, 1), 'Token should be available after reset');
+});
+
+test('Weather Normalization: Meteorological bounds clamping & dew point calculation', () => {
+  // Test with extreme / out-of-bounds telemetry
+  const mockPayload: any = {
+    latitude: 28.61,
+    longitude: 77.20,
+    timezone: 'Asia/Kolkata',
+    current: {
+      temperature_2m: 140, // Extreme impossible heat
+      relative_humidity_2m: 150, // Impossible humidity > 100%
+      apparent_temperature: 160,
+      is_day: 1,
+      precipitation: -5, // Impossible negative rain
+      weather_code: 0,
+      wind_speed_10m: -20, // Impossible negative wind
+      wind_direction_10m: 750, // Wrap-around angle
+    },
+    daily: {
+      time: ['2026-09-11'],
+      weather_code: [0],
+      temperature_2m_max: [45],
+      temperature_2m_min: [25],
+      sunrise: ['2026-09-11T06:00'],
+      sunset: ['2026-09-11T18:30'],
+      uv_index_max: [8],
+      precipitation_sum: [0],
+    },
+    hourly: {
+      time: ['2026-09-11T00:00'],
+      temperature_2m: [30],
+      relative_humidity_2m: [50],
+      precipitation_probability: [10],
+      precipitation: [0],
+      weather_code: [0],
+    },
+  };
+
+  const normalized = normalizeWeatherData(mockPayload);
+
+  // Assert clamped values
+  assert.strictEqual(normalized.current_summary.temp, 65, 'Temperature must be clamped to meteorological max of 65C');
+  assert.strictEqual(normalized.current_summary.humidity, 100, 'Humidity must be clamped to 100%');
+  assert.strictEqual(normalized.current_summary.windSpeed, 0, 'Wind speed must not be negative');
+  assert.ok(typeof normalized.current_summary.windDirection === 'string', 'Wind direction must resolve to compass');
+  assert.strictEqual(normalized.current_summary.dewPoint, 65, 'Dew point at 100% RH equals dry bulb temperature');
+
+  // Test dew point with normal temperature and 60% humidity
+  const normalPayload: any = {
+    ...mockPayload,
+    current: {
+      ...mockPayload.current,
+      temperature_2m: 20,
+      relative_humidity_2m: 60,
+    },
+  };
+  const normalNormalized = normalizeWeatherData(normalPayload);
+  // Magnus formula: 20 - ((100 - 60) / 5) = 20 - 8 = 12
+  assert.strictEqual(normalNormalized.current_summary.dewPoint, 12, 'Dew point at 20C and 60% RH should be 12C');
+});
+
+test('Weather Service Resilience: Error categorization', () => {
+  const timeoutErr = new WeatherServiceError('Timed out', 'NETWORK_TIMEOUT', true);
+  assert.strictEqual(timeoutErr.code, 'NETWORK_TIMEOUT');
+  assert.strictEqual(timeoutErr.isRecoverable, true);
+  assert.strictEqual(timeoutErr.name, 'WeatherServiceError');
+
+  const offlineErr = new WeatherServiceError('No internet', 'NETWORK_OFFLINE');
+  assert.strictEqual(offlineErr.code, 'NETWORK_OFFLINE');
 });
 
 

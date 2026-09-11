@@ -46,9 +46,7 @@ export default function MeScreen() {
   const { locale, setLocale, t } = useLocaleStore();
   const { animationsEnabled, setAnimationsEnabled } = useAnimationStore();
   const companionEnabled = useCompanionStore((state) => state.isEnabled);
-  const soundEnabled = useCompanionStore((state) => state.soundEnabled);
   const reactionsEnabled = useCompanionStore((state) => state.reactionsEnabled);
-  const setSoundEnabled = useCompanionStore((state) => state.setSoundEnabled);
   const setReactionsEnabled = useCompanionStore((state) => state.setReactionsEnabled);
   const pettedCount = useCompanionStore((state) => state.pettedCount);
   const treatsGiven = useCompanionStore((state) => state.treatsGiven);
@@ -1162,32 +1160,6 @@ export default function MeScreen() {
               </View>
 
               <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 8 }} />
-
-              {/* Sound Toggle */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Typography variant="bodyMedium" style={{ fontWeight: '600', fontSize: 13 }}>Cat Audio & Purrs</Typography>
-                  <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontSize: 11 }}>
-                    Gentle synthesized meows and purrs on tap or bonding.
-                  </Typography>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setSoundEnabled(!soundEnabled)}
-                  activeOpacity={0.7}
-                  style={{
-                    paddingVertical: 5,
-                    paddingHorizontal: 12,
-                    borderRadius: 8,
-                    backgroundColor: soundEnabled ? theme.colors.primary : theme.colors.surfaceSecondary,
-                    borderWidth: 1,
-                    borderColor: soundEnabled ? theme.colors.primary : theme.colors.border,
-                  }}
-                >
-                  <Typography variant="caption" color={soundEnabled ? (theme.colors.onPrimary || '#FFFFFF') : theme.colors.text} style={{ fontWeight: '700' }}>
-                    {soundEnabled ? 'ON' : 'OFF'}
-                  </Typography>
-                </TouchableOpacity>
-              </View>
 
               {/* Reactions Toggle */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, marginTop: 4 }}>

@@ -8,7 +8,9 @@ export interface WidgetDataResult<T> {
   error: string | null;
   isStale: boolean;
   isOffline: boolean;
-  refresh: () => void;
+  lastUpdated: number | null;
+  cacheAgeSeconds: number;
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -28,6 +30,8 @@ export function useWidgetData<T>(
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [cacheAgeSeconds, setCacheAgeSeconds] = useState(0);
 
   const locations = useLocationStore((state) => state.locations);
   const activeLoc =
@@ -53,6 +57,8 @@ export function useWidgetData<T>(
           if (slice !== undefined) {
             setData(slice as T);
             setIsStale(cached.isExpired);
+            setLastUpdated(cached.timestamp);
+            setCacheAgeSeconds(cached.ageSeconds);
             setLoading(false);
             hasData = true;
           }
@@ -69,8 +75,11 @@ export function useWidgetData<T>(
         if (freshSlice !== undefined) {
           setData(freshSlice as T);
         }
-        setIsStale(false);
-        setIsOffline(false);
+        const isOfflineSource = !!freshDataset._meta?.isOfflineCached;
+        setIsOffline(isOfflineSource);
+        setIsStale(!!freshDataset._meta?.isStale);
+        setLastUpdated(freshDataset._meta?.lastUpdated ?? Date.now());
+        setCacheAgeSeconds(freshDataset._meta?.cacheAgeSeconds ?? 0);
         setError(null);
       } catch (err: any) {
         if (cancelled) return;
@@ -103,8 +112,11 @@ export function useWidgetData<T>(
       if (freshSlice !== undefined) {
         setData(freshSlice as T);
       }
-      setIsStale(false);
-      setIsOffline(false);
+      const isOfflineSource = !!freshDataset._meta?.isOfflineCached;
+      setIsOffline(isOfflineSource);
+      setIsStale(!!freshDataset._meta?.isStale);
+      setLastUpdated(freshDataset._meta?.lastUpdated ?? Date.now());
+      setCacheAgeSeconds(freshDataset._meta?.cacheAgeSeconds ?? 0);
       setError(null);
     } catch (err: any) {
       setIsOffline(true);
@@ -114,7 +126,7 @@ export function useWidgetData<T>(
     }
   }, [endpoint, lat, lon]);
 
-  return { data, loading, error, isStale, isOffline, refresh };
+  return { data, loading, error, isStale, isOffline, lastUpdated, cacheAgeSeconds, refresh };
 }
 
 

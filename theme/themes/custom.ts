@@ -24,7 +24,7 @@ export const CustomTheme: MausamTheme = {
     error: '#EF4444',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 16, l: 20, xl: 24, xxl: 32 },
   },
   spacing: { xs: 4, s: 8, m: 16, l: 24, xl: 32, xxl: 48 },

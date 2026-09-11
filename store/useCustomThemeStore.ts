@@ -35,7 +35,7 @@ export const STARTER_CUSTOM_THEMES: MausamTheme[] = [
       glow: '#A855F7',
     },
     typography: {
-      fontFamily: { regular: 'System', bold: 'System' },
+      fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
       sizes: { xs: 11, s: 13, m: 15, l: 18, xl: 22, xxl: 32 },
     },
     spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 36 },
@@ -73,7 +73,7 @@ export const STARTER_CUSTOM_THEMES: MausamTheme[] = [
       glow: '#F97316',
     },
     typography: {
-      fontFamily: { regular: 'System', bold: 'System' },
+      fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
       sizes: { xs: 11, s: 13, m: 15, l: 18, xl: 22, xxl: 32 },
     },
     spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 36 },
@@ -110,7 +110,7 @@ export const STARTER_CUSTOM_THEMES: MausamTheme[] = [
       glow: '#22C55E',
     },
     typography: {
-      fontFamily: { regular: 'System', bold: 'System' },
+      fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
       sizes: { xs: 11, s: 13, m: 15, l: 18, xl: 22, xxl: 32 },
     },
     spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 36 },
@@ -151,7 +151,7 @@ export const STARTER_CUSTOM_THEMES: MausamTheme[] = [
       errorBg: 'rgba(185, 28, 28, 0.12)',
     },
     typography: {
-      fontFamily: { regular: 'System', bold: 'System' },
+      fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
       sizes: { xs: 11, s: 13, m: 15, l: 18, xl: 22, xxl: 32 },
     },
     spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 36 },

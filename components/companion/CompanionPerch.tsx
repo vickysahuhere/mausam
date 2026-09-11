@@ -26,6 +26,7 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
   const petCat = useCompanionStore((s) => s.petCat);
   const feedCat = useCompanionStore((s) => s.feedCat);
   const dismissSpeech = useCompanionStore((s) => s.dismissSpeech);
+  const skipReaction = useCompanionStore((s) => s.skipReaction);
 
   const animationsEnabled = useAnimationStore((state) => state.animationsEnabled);
   const themeStyle = useMemo(() => getCatThemeStyle(theme, Boolean(theme.isDark)), [theme]);
@@ -137,6 +138,11 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
   }
 
   const handleCatPress = () => {
+    // If bongo groove easter egg is playing, tapping Mimi skips it immediately back to calm resting perch!
+    if (currentState.pose === 'bongo_tap') {
+      skipReaction();
+      return;
+    }
     tapCat();
   };
 
@@ -161,63 +167,71 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
           const isBongoCombo = currentState.speechText.toLowerCase().includes('bongo') || currentState.speechText.toLowerCase().includes('rhythm');
 
           return (
-            <Animated.View
-              style={[
-                styles.speechBubble,
-                {
-                  backgroundColor: bubbleBg,
-                  borderColor: bubbleBorder,
-                  borderWidth: themeStyle.shadowStyle === 'comic_offset' ? 1.5 : 1,
-                  opacity: speechAnim,
-                  transform: [
-                    {
-                      scale: speechAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.88, 1],
-                      }),
-                    },
-                    {
-                      translateY: speechAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [4, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={skipReaction}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss message and skip animation"
+              style={{ alignItems: 'center' }}
             >
-              <View style={styles.speechContent}>
-                {isBongoCombo ? (
-                  <Typography variant="caption" style={{ fontSize: 13, marginRight: 2 }}>🥁</Typography>
-                ) : (
-                  <View
-                    style={[
-                      styles.speechDot,
-                      { backgroundColor: themeStyle.accessoryTintColor ?? theme.colors.primary },
-                    ]}
-                  />
-                )}
-                <Typography
-                  variant="caption"
-                  color={themeStyle.shadowStyle === 'comic_offset' ? '#264653' : theme.colors.text}
-                  style={{ fontWeight: '700', fontSize: 11.5, textAlign: 'center', lineHeight: 16 }}
-                >
-                  {currentState.speechText}
-                </Typography>
-              </View>
-              {/* Downward Speech Bubble Tail pointing directly at Mimi */}
-              <View
+              <Animated.View
                 style={[
-                  styles.bubblePointer,
+                  styles.speechBubble,
                   {
                     backgroundColor: bubbleBg,
                     borderColor: bubbleBorder,
-                    borderRightWidth: themeStyle.shadowStyle === 'comic_offset' ? 1.5 : 1,
-                    borderBottomWidth: themeStyle.shadowStyle === 'comic_offset' ? 1.5 : 1,
+                    borderWidth: themeStyle.shadowStyle === 'comic_offset' ? 1.5 : 1,
+                    opacity: speechAnim,
+                    transform: [
+                      {
+                        scale: speechAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.88, 1],
+                        }),
+                      },
+                      {
+                        translateY: speechAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [4, 0],
+                        }),
+                      },
+                    ],
                   },
                 ]}
-              />
-            </Animated.View>
+              >
+                <View style={styles.speechContent}>
+                  {isBongoCombo ? (
+                    <Typography variant="caption" style={{ fontSize: 13, marginRight: 2 }}>🥁</Typography>
+                  ) : (
+                    <View
+                      style={[
+                        styles.speechDot,
+                        { backgroundColor: themeStyle.accessoryTintColor ?? theme.colors.primary },
+                      ]}
+                    />
+                  )}
+                  <Typography
+                    variant="caption"
+                    color={themeStyle.shadowStyle === 'comic_offset' ? '#264653' : theme.colors.text}
+                    style={{ fontWeight: '700', fontSize: 11.5, textAlign: 'center', lineHeight: 16, flexShrink: 1 }}
+                  >
+                    {currentState.speechText}
+                  </Typography>
+                </View>
+                {/* Downward Speech Bubble Tail pointing directly at Mimi */}
+                <View
+                  style={[
+                    styles.bubblePointer,
+                    {
+                      backgroundColor: bubbleBg,
+                      borderColor: bubbleBorder,
+                      borderRightWidth: themeStyle.shadowStyle === 'comic_offset' ? 1.5 : 1,
+                      borderBottomWidth: themeStyle.shadowStyle === 'comic_offset' ? 1.5 : 1,
+                    },
+                  ]}
+                />
+              </Animated.View>
+            </TouchableOpacity>
           );
         })() : (
           /* Soft Ambient Mood Pill when silent */
@@ -417,28 +431,30 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   stageHeader: {
-    height: 38,
+    minHeight: 38,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
     zIndex: 25,
+    paddingHorizontal: 12,
   },
   speechBubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
-    elevation: 0,
-    maxWidth: 270,
+    elevation: 2,
+    maxWidth: 320,
     position: 'relative',
     overflow: 'visible',
   },
   speechContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
   speechDot: {

@@ -57,7 +57,8 @@ export type CatSound =
   | 'yawn'
   | 'chirp'
   | 'surprised'
-  | 'playful';
+  | 'playful'
+  | 'bongo';
 
 export type CatAnimation =
   | 'idle_breathe'

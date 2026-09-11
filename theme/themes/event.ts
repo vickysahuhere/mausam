@@ -25,7 +25,7 @@ export const EventTheme: MausamTheme = {
     glow: 'rgba(180, 83, 9, 0.15)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 11, s: 13, m: 15, l: 22, xl: 30, xxl: 40 },
   },
   spacing: { xs: 8, s: 14, m: 22, l: 32, xl: 44, xxl: 60 }, // Generous breathing space

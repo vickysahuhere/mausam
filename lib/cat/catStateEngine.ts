@@ -158,11 +158,11 @@ export class CatStateEngine {
         animation: 'paw_tap',
         message: {
           id: 'tap_combo',
-          text: 'Purr! You found the secret bongo rhythm! 🐾',
+          text: 'Ba-dum! You found the secret bongo rhythm!',
           category: 'discoverable',
           importance: 'medium',
         },
-        sound: 'happy_meow',
+        sound: 'bongo',
         priority: 'INTERACTION',
         priorityScore: 75,
         durationMs: 2500,

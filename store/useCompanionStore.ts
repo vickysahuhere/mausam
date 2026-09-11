@@ -17,7 +17,7 @@ import {
 import { selectContextualRemark } from '../lib/companion/companionRemarks';
 import { companionEvents } from '../lib/companion/companionEvents';
 import { CatMood, CatActivity } from '../lib/cat/catTypes';
-import { catSoundManager } from '../lib/cat/catSoundManager';
+import { catSoundManager, CatAudioPriority } from '../lib/cat/catSoundManager';
 import { CatStateEngine } from '../lib/cat/catStateEngine';
 import { WeatherContextData } from '../lib/cat/catMicroAdvice';
 import { haptics } from '../lib/haptics';
@@ -106,6 +106,7 @@ interface CompanionStoreState {
   tapCat: () => void;
   longPressCat: () => void;
   dismissSpeech: () => void;
+  skipReaction: () => void;
   tickIdle: () => void;
   incrementInactivity: (deltaSecs?: number) => void;
   resetInactivity: () => void;
@@ -120,7 +121,7 @@ interface CompanionStoreState {
 
 export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   isEnabled: true,
-  soundEnabled: true,
+  soundEnabled: false,
   reactionsEnabled: true,
   name: 'Mimi',
   currentState: getDefaultRestingState(),
@@ -170,7 +171,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       }
       set({ processedAlertIds: [...processedAlertIds, payload.title] });
       if (get().soundEnabled) {
-        catSoundManager.play('surprised');
+        catSoundManager.play('surprised', { priority: CatAudioPriority.HIGH, reason: 'severe_alert' });
       }
     });
 
@@ -181,9 +182,10 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
         AsyncStorage.getItem(REACTIONS_STORAGE_KEY),
       ]);
 
-      const isSound = soundPref !== null ? JSON.parse(soundPref) : true;
+      // Sounds silenced for now — full architecture and database preserved internally
+      const isSound = false;
       const isReact = reactPref !== null ? JSON.parse(reactPref) : true;
-      catSoundManager.setSoundEnabled(isSound);
+      catSoundManager.setSoundEnabled(false);
 
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -448,7 +450,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       catMood: 'happy',
       catActivity: 'grooming',
       expression: 'blissful',
-      pose: 'bongo_tap',
+      pose: 'sit',
       gazeTarget: 'user',
       speechText: speech,
       priority: 'INTERACTION',
@@ -504,12 +506,12 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       catMood: 'happy',
       catActivity: 'celebrating',
       expression: 'happy',
-      pose: 'bongo_tap',
+      pose: 'sit',
       gazeTarget: 'user',
       speechText: 'Crunch crunch! *happy tail*',
       priority: 'INTERACTION',
       priorityScore: 65,
-      durationMs: 2800,
+      durationMs: 2400,
     });
 
     companionEvents.emit('user_feed_cat', undefined);
@@ -554,7 +556,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     if (tapCount >= 3 && tapCount < 5) {
       const easterEgg = CatStateEngine.computeInteractionReaction('single_tap', tapCount);
       if (soundEnabled) {
-        catSoundManager.playHappyMeow();
+        catSoundManager.playBongo();
       }
       get().triggerReaction({
         mood: 'happy',
@@ -605,7 +607,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
         mood: 'curious',
         catMood: 'happy',
         catActivity: 'resting',
-        expression: 'surprised',
+        expression: 'happy',
         pose: 'wave',
         gazeTarget: 'user',
         speechText: null,
@@ -622,7 +624,7 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       catMood: 'happy',
       catActivity: 'resting',
       expression: 'happy',
-      pose: 'bongo_tap',
+      pose: 'sit',
       gazeTarget: 'user',
       speechText: null,
       priority: 'INTERACTION',
@@ -663,6 +665,9 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
 
     const env = CatStateEngine.computeEnvironmentReaction({ weather: ctx });
     if (env.message) {
+      if (get().soundEnabled && env.sound) {
+        catSoundManager.play(env.sound, { priority: CatAudioPriority.HIGH, reason: 'weather_guidance' });
+      }
       get().triggerReaction({
         mood: env.mood as any,
         catMood: env.mood,
@@ -684,6 +689,29 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     if (currentState.speechText) {
       set({ currentState: { ...currentState, speechText: null } });
     }
+  },
+
+  skipReaction: () => {
+    if (activeTimerId) {
+      clearTimeout(activeTimerId);
+      activeTimerId = null;
+    }
+    catSoundManager.stopCurrentSound();
+    const stateNow = get().currentState;
+    set({
+      currentState: {
+        ...stateNow,
+        expression: 'neutral',
+        pose: 'perch',
+        gazeTarget: 'user',
+        speechText: null,
+        durationMs: 0,
+        priority: 'AMBIENT',
+        priorityScore: 10,
+      },
+      catActivity: 'resting',
+      isWaking: false,
+    });
   },
 
   tickIdle: () => {

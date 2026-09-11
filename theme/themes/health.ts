@@ -25,7 +25,7 @@ export const HealthTheme: MausamTheme = {
     glow: 'rgba(14, 165, 233, 0.12)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 11, s: 13, m: 15, l: 19, xl: 24, xxl: 32 },
   },
   spacing: { xs: 4, s: 8, m: 14, l: 22, xl: 30, xxl: 44 },

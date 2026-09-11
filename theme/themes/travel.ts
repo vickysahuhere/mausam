@@ -25,7 +25,7 @@ export const TravelTheme: MausamTheme = {
     glow: 'rgba(30, 58, 138, 0.12)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 11, s: 13, m: 15, l: 20, xl: 26, xxl: 34 },
   },
   spacing: { xs: 4, s: 8, m: 16, l: 24, xl: 32, xxl: 48 },

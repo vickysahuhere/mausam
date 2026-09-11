@@ -1,5 +1,6 @@
 import { IconName } from '../components/ui/Icon';
 import { getCachedData, setCachedData } from './cache';
+import { calculateMoonPhase } from './solarAlmanac';
 
 // ==========================================
 // 1. OPEN-METEO PROVIDER RAW TYPES
@@ -109,6 +110,25 @@ function getEdgeFunctionBaseUrl(): string | null {
 // 2. NORMALIZED DATA MODELS FOR ALL WIDGETS
 // ==========================================
 
+export interface WeatherMetadata {
+  lastUpdated: number;
+  isStale: boolean;
+  isOfflineCached: boolean;
+  cacheAgeSeconds: number;
+  source: 'edge' | 'open-meteo' | 'cache';
+}
+
+export class WeatherServiceError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'NETWORK_TIMEOUT' | 'NETWORK_OFFLINE' | 'SERVER_ERROR' | 'NO_CACHE' | 'INVALID_DATA',
+    public readonly isRecoverable: boolean = true
+  ) {
+    super(message);
+    this.name = 'WeatherServiceError';
+  }
+}
+
 export interface CurrentSummaryData {
   temp: number;
   high: number;
@@ -119,6 +139,9 @@ export interface CurrentSummaryData {
   windSpeed: number;
   windDirection: string;
   feelsLike: number;
+  dewPoint?: number;
+  pressureHpa?: number;
+  visibilityKm?: number;
 }
 
 export interface AqiData {
@@ -266,7 +289,35 @@ export interface HourlyForecastData {
   hours: HourlyForecastItem[];
 }
 
+export interface WindCompassData {
+  speed: number;
+  gustSpeed: number;
+  degrees: number;
+  compassDir: string;
+  beaufortScale: string;
+  description: string;
+}
+
+export interface BarometerPressureData {
+  pressureHpa: number;
+  trend: 'rising' | 'falling' | 'steady';
+  tendencyLabel: string;
+  forecastSummary: string;
+  altitudeEstimateM: number;
+}
+
+export interface MoonPhaseData {
+  phaseValue: number;
+  phaseName: string;
+  illuminationPercent: number;
+  daysIntoCycle: number;
+  emoji: string;
+  nextMilestone: string;
+  visibilityTip: string;
+}
+
 export interface NormalizedWeatherData {
+  _meta?: WeatherMetadata;
   current_summary: CurrentSummaryData;
   hourly_forecast: HourlyForecastData;
   aqi_card: AqiData;
@@ -286,6 +337,9 @@ export interface NormalizedWeatherData {
   destination_weather: DestinationWeatherData;
   packing_tip: PackingTipData;
   school_commute: SchoolCommuteData;
+  wind_compass?: WindCompassData;
+  barometer_pressure?: BarometerPressureData;
+  moon_phase?: MoonPhaseData;
 }
 
 // ==========================================
@@ -539,15 +593,22 @@ export function normalizeWeatherData(
     wind_speed_10m: 10,
     wind_direction_10m: 180,
   };
+  const rawTemp = Number.isFinite(safeCurrent.temperature_2m) ? safeCurrent.temperature_2m : 22;
+  const rawHumidity = Number.isFinite(safeCurrent.relative_humidity_2m) ? safeCurrent.relative_humidity_2m : 50;
+  const rawApparent = Number.isFinite(safeCurrent.apparent_temperature) ? safeCurrent.apparent_temperature : rawTemp;
+  const rawWindSpeed = Number.isFinite(safeCurrent.wind_speed_10m) ? safeCurrent.wind_speed_10m : 10;
+  const rawWindDir = Number.isFinite(safeCurrent.wind_direction_10m) ? safeCurrent.wind_direction_10m : 180;
+  const rawPrecip = Number.isFinite(safeCurrent.precipitation) ? safeCurrent.precipitation : 0;
+
   const current = {
-    temperature_2m: Number.isFinite(safeCurrent.temperature_2m) ? safeCurrent.temperature_2m : 22,
-    relative_humidity_2m: Number.isFinite(safeCurrent.relative_humidity_2m) ? safeCurrent.relative_humidity_2m : 50,
-    apparent_temperature: Number.isFinite(safeCurrent.apparent_temperature) ? safeCurrent.apparent_temperature : 22,
+    temperature_2m: Math.max(-70, Math.min(65, rawTemp)),
+    relative_humidity_2m: Math.max(0, Math.min(100, rawHumidity)),
+    apparent_temperature: Math.max(-70, Math.min(70, rawApparent)),
     is_day: safeCurrent.is_day ?? 1,
-    precipitation: Number.isFinite(safeCurrent.precipitation) ? safeCurrent.precipitation : 0,
+    precipitation: Math.max(0, rawPrecip),
     weather_code: Number.isFinite(safeCurrent.weather_code) ? safeCurrent.weather_code : 0,
-    wind_speed_10m: Number.isFinite(safeCurrent.wind_speed_10m) ? safeCurrent.wind_speed_10m : 10,
-    wind_direction_10m: Number.isFinite(safeCurrent.wind_direction_10m) ? safeCurrent.wind_direction_10m : 180,
+    wind_speed_10m: Math.max(0, rawWindSpeed),
+    wind_direction_10m: ((Math.round(rawWindDir) % 360) + 360) % 360,
   };
   const daily = forecast?.daily ?? ({} as any);
   const hourly = forecast?.hourly ?? ({} as any);
@@ -560,6 +621,9 @@ export function normalizeWeatherData(
   const todayHigh = Math.round(Number.isFinite(rawHigh) ? rawHigh : current.temperature_2m);
   const todayLow = Math.round(Number.isFinite(rawLow) ? rawLow : (current.temperature_2m - 4));
 
+  // Magnus formula approximation for dew point
+  const dewPoint = Math.round(current.temperature_2m - ((100 - current.relative_humidity_2m) / 5));
+
   // Current summary
   const currentSummary: CurrentSummaryData = {
     temp: Math.round(current.temperature_2m),
@@ -571,6 +635,7 @@ export function normalizeWeatherData(
     windSpeed: Math.round(current.wind_speed_10m),
     windDirection: degreesToCompass(current.wind_direction_10m),
     feelsLike: Math.round(current.apparent_temperature),
+    dewPoint,
   };
 
   // AQI
@@ -945,6 +1010,105 @@ export function normalizeWeatherData(
       : 'Smooth morning commute expected.',
   };
 
+  // Wind Compass calculations
+  const windDegrees = current.wind_direction_10m ?? 180;
+  const windKmh = Math.round(current.wind_speed_10m);
+  const rawGust = (current as any).wind_gusts_10m;
+  const gustKmh = Math.round(Number.isFinite(rawGust) ? rawGust : windKmh * 1.35);
+
+  let beaufort = 'Calm';
+  let windDesc = 'Smoke rises vertically';
+  if (windKmh <= 5) {
+    beaufort = 'Light Air (Force 1)';
+    windDesc = 'Smoke drift indicates wind direction';
+  } else if (windKmh <= 11) {
+    beaufort = 'Light Breeze (Force 2)';
+    windDesc = 'Wind felt on exposed skin; leaves rustle';
+  } else if (windKmh <= 19) {
+    beaufort = 'Gentle Breeze (Force 3)';
+    windDesc = 'Leaves and small twigs in constant motion';
+  } else if (windKmh <= 28) {
+    beaufort = 'Moderate Breeze (Force 4)';
+    windDesc = 'Dust and loose paper raised; small branches move';
+  } else if (windKmh <= 38) {
+    beaufort = 'Fresh Breeze (Force 5)';
+    windDesc = 'Small trees in leaf begin to sway';
+  } else if (windKmh <= 49) {
+    beaufort = 'Strong Breeze (Force 6)';
+    windDesc = 'Large branches in motion; umbrellas used with difficulty';
+  } else {
+    beaufort = 'Near Gale / Gale (Force 7+)';
+    windDesc = 'Whole trees in motion; walking against wind is difficult';
+  }
+
+  const windCompass: WindCompassData = {
+    speed: windKmh,
+    gustSpeed: gustKmh,
+    degrees: windDegrees,
+    compassDir: degreesToCompass(windDegrees),
+    beaufortScale: beaufort,
+    description: windDesc,
+  };
+
+  // Barometer Pressure calculations
+  const rawPressure = (current as any).surface_pressure;
+  const pressureHpa = Math.round(Number.isFinite(rawPressure) ? rawPressure : 1013);
+  let baroTrend: 'rising' | 'falling' | 'steady' = 'steady';
+  let tendencyLabel = 'Steady pressure';
+  let baroSummary = 'Stable seasonal conditions';
+
+  if (pressureHpa > 1020) {
+    baroTrend = 'rising';
+    tendencyLabel = 'High Barometer';
+    baroSummary = 'Fair, dry weather and clear skies expected';
+  } else if (pressureHpa < 1005) {
+    baroTrend = 'falling';
+    tendencyLabel = 'Low Barometer';
+    baroSummary = 'Storm system or overcast unsettled conditions';
+  } else {
+    baroTrend = 'steady';
+    tendencyLabel = 'Normal Barometer';
+    baroSummary = 'Changeable weather with mild breeze';
+  }
+
+  const barometerPressure: BarometerPressureData = {
+    pressureHpa,
+    trend: baroTrend,
+    tendencyLabel,
+    forecastSummary: baroSummary,
+    altitudeEstimateM: Math.round((1013.25 - pressureHpa) * 8.4),
+  };
+
+  const rawMoon = calculateMoonPhase(new Date());
+  let nextMilestone = '';
+  if (rawMoon.phaseValue < 0.5) {
+    const daysUntilFull = Math.max(1, Math.round((0.5 - rawMoon.phaseValue) * 29.53));
+    nextMilestone = `Full Moon in ${daysUntilFull} day${daysUntilFull === 1 ? '' : 's'}`;
+  } else {
+    const daysUntilNew = Math.max(1, Math.round((1.0 - rawMoon.phaseValue) * 29.53));
+    nextMilestone = `New Moon in ${daysUntilNew} day${daysUntilNew === 1 ? '' : 's'}`;
+  }
+
+  let visibilityTip = 'Clear celestial skies for night viewing';
+  const rawDesc = (currentSummary.desc || '').toLowerCase();
+  if (rawDesc.includes('rain') || rawDesc.includes('storm')) {
+    visibilityTip = 'Cloud cover and rain may obstruct moon viewing';
+  } else if (rawDesc.includes('cloud') || rawDesc.includes('overcast')) {
+    visibilityTip = 'Partial cloud drifting across the lunar disc';
+  } else if (rawMoon.illuminationPercent >= 80) {
+    visibilityTip = 'Brilliant silver moonlight illuminating landscape';
+  }
+
+  const moonPhase: MoonPhaseData = {
+    phaseValue: rawMoon.phaseValue,
+    phaseName: rawMoon.phaseName,
+    illuminationPercent: rawMoon.illuminationPercent,
+    daysIntoCycle: rawMoon.daysIntoCycle,
+    emoji: rawMoon.emoji,
+    nextMilestone,
+    visibilityTip,
+  };
+
   return {
     current_summary: currentSummary,
     hourly_forecast: hourlyForecast,
@@ -965,6 +1129,9 @@ export function normalizeWeatherData(
     destination_weather: destinationWeather,
     packing_tip: packingTip,
     school_commute: schoolCommute,
+    wind_compass: windCompass,
+    barometer_pressure: barometerPressure,
+    moon_phase: moonPhase,
   };
 }
 
@@ -994,7 +1161,7 @@ function getCoordinateKey(lat: number, lon: number): string {
 export async function getCachedWeather(
   lat: number,
   lon: number
-): Promise<{ data: NormalizedWeatherData; isExpired: boolean } | null> {
+): Promise<{ data: NormalizedWeatherData; isExpired: boolean; timestamp: number; ageSeconds: number } | null> {
   const { safeLat, safeLon } = sanitizeCoordinates(lat, lon);
   const key = getCoordinateKey(safeLat, safeLon);
 
@@ -1002,18 +1169,57 @@ export async function getCachedWeather(
   const memoryCached = inMemoryCache.get(key);
   if (memoryCached) {
     const isExpired = Date.now() - memoryCached.timestamp > CACHE_TTL_MS;
-    return { data: memoryCached.data, isExpired };
+    const ageSeconds = Math.max(0, Math.floor((Date.now() - memoryCached.timestamp) / 1000));
+    return { data: memoryCached.data, isExpired, timestamp: memoryCached.timestamp, ageSeconds };
   }
 
   // 2. Check persistent AsyncStorage cache
   const diskCached = await getCachedData<NormalizedWeatherData>(key);
   if (diskCached) {
     // Populate in-memory cache for instant subsequent widget renders
-    inMemoryCache.set(key, { data: diskCached.data, timestamp: Date.now() - (diskCached.isExpired ? CACHE_TTL_MS + 1000 : 0) });
+    inMemoryCache.set(key, { data: diskCached.data, timestamp: diskCached.timestamp });
     return diskCached;
   }
 
   return null;
+}
+
+/**
+ * Executes an HTTP fetch request with timeout and exponential backoff retry.
+ */
+async function fetchWithBackoff(
+  url: string,
+  options: { timeoutMs?: number; maxRetries?: number } = {}
+): Promise<Response> {
+  const { maxRetries = 1, timeoutMs = 8000 } = options;
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
+    const abortController = new AbortController();
+    const timer = setTimeout(() => abortController.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(url, { signal: abortController.signal });
+      clearTimeout(timer);
+      if (res.ok) return res;
+
+      if (res.status >= 500 && attempt < maxRetries) {
+        attempt++;
+        await new Promise((resolve) => setTimeout(resolve, attempt * 600));
+        continue;
+      }
+      return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (attempt >= maxRetries) {
+        throw err;
+      }
+      attempt++;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 600));
+    }
+  }
+
+  throw new WeatherServiceError('Network connection failed after retries', 'NETWORK_OFFLINE');
 }
 
 /**
@@ -1060,9 +1266,9 @@ export async function getWeatherData(
         try {
           // ── Route through Supabase Edge Functions ──
           const [forecastRes, aqiRes, marineRes] = await Promise.all([
-            fetch(`${edgeBase}/weather?lat=${lat}&lon=${lon}`),
-            fetch(`${edgeBase}/aqi?lat=${lat}&lon=${lon}`).catch(() => null),
-            fetch(`${edgeBase}/sea?lat=${lat}&lon=${lon}`).catch(() => null),
+            fetchWithBackoff(`${edgeBase}/weather?lat=${lat}&lon=${lon}`, { timeoutMs: 7000 }),
+            fetchWithBackoff(`${edgeBase}/aqi?lat=${lat}&lon=${lon}`, { timeoutMs: 6000 }).catch(() => null),
+            fetchWithBackoff(`${edgeBase}/sea?lat=${lat}&lon=${lon}`, { timeoutMs: 6000 }).catch(() => null),
           ]);
 
           if (forecastRes && forecastRes.ok) {
@@ -1095,7 +1301,6 @@ export async function getWeatherData(
             if (marineRes && marineRes.ok) {
               const seaData = await marineRes.json();
               if (seaData.status !== 'unavailable') {
-                // Parse Edge Function marine response back to raw marine shape
                 marineJson = {
                   latitude: seaData.metadata?.latitude ?? lat,
                   longitude: seaData.metadata?.longitude ?? lon,
@@ -1124,44 +1329,71 @@ export async function getWeatherData(
         const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,european_aqi,us_aqi&timezone=auto`;
         const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period&hourly=wave_height,wave_direction,wave_period&forecast_days=2`;
 
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 10000);
+        const [forecastRes, aqiRes, marineRes] = await Promise.all([
+          fetchWithBackoff(forecastUrl, { timeoutMs: 8000, maxRetries: 1 }),
+          fetchWithBackoff(aqiUrl, { timeoutMs: 6000, maxRetries: 1 }).catch(() => null),
+          fetchWithBackoff(marineUrl, { timeoutMs: 6000, maxRetries: 1 }).catch(() => null),
+        ]);
 
-        try {
-          const [forecastRes, aqiRes, marineRes] = await Promise.all([
-            fetch(forecastUrl, { signal: abortController.signal }),
-            fetch(aqiUrl, { signal: abortController.signal }).catch(() => null),
-            fetch(marineUrl, { signal: abortController.signal }).catch(() => null),
-          ]);
-
-          if (!forecastRes.ok) {
-            throw new Error(`Open-Meteo request failed: ${forecastRes.status}`);
-          }
-
-          forecastJson = await forecastRes.json();
-          aqiJson = aqiRes && aqiRes.ok ? await aqiRes.json() : null;
-          marineJson = marineRes && marineRes.ok ? await marineRes.json() : null;
-        } finally {
-          clearTimeout(timeoutId);
+        if (!forecastRes.ok) {
+          throw new WeatherServiceError(`Open-Meteo request failed: ${forecastRes.status}`, 'SERVER_ERROR');
         }
+
+        forecastJson = await forecastRes.json();
+        aqiJson = aqiRes && aqiRes.ok ? await aqiRes.json() : null;
+        marineJson = marineRes && marineRes.ok ? await marineRes.json() : null;
       }
 
       const normalized = normalizeWeatherData(forecastJson, aqiJson, marineJson);
+      const now = Date.now();
+
+      const enrichedNormalized: NormalizedWeatherData = {
+        ...normalized,
+        _meta: {
+          lastUpdated: now,
+          isStale: false,
+          isOfflineCached: false,
+          cacheAgeSeconds: 0,
+          source: edgeSuccess ? 'edge' : 'open-meteo',
+        },
+      };
 
       // Save to memory cache
-      inMemoryCache.set(key, { data: normalized, timestamp: Date.now() });
+      inMemoryCache.set(key, { data: enrichedNormalized, timestamp: now });
 
       // Save to persistent AsyncStorage cache
-      setCachedData(key, normalized, CACHE_TTL_MS);
+      setCachedData(key, enrichedNormalized, CACHE_TTL_MS);
 
-      return normalized;
-    } catch (err) {
+      return enrichedNormalized;
+    } catch (err: any) {
       // If network fails, check persistent cache
       const cached = await getCachedData<NormalizedWeatherData>(key);
       if (cached?.data) {
-        return cached.data;
+        const enrichedCached: NormalizedWeatherData = {
+          ...cached.data,
+          _meta: {
+            lastUpdated: cached.timestamp,
+            isStale: true,
+            isOfflineCached: true,
+            cacheAgeSeconds: cached.ageSeconds,
+            source: 'cache',
+          },
+        };
+        return enrichedCached;
       }
-      throw err;
+
+      const isTimeout =
+        err?.name === 'AbortError' ||
+        (err?.message && err.message.toLowerCase().includes('aborted')) ||
+        (err?.message && err.message.toLowerCase().includes('timeout'));
+
+      throw new WeatherServiceError(
+        isTimeout
+          ? 'Weather request timed out. Please verify your internet connection.'
+          : (err?.message || 'Unable to load weather forecast.'),
+        isTimeout ? 'NETWORK_TIMEOUT' : 'NETWORK_OFFLINE',
+        true
+      );
     } finally {
       inFlightRequests.delete(key);
     }

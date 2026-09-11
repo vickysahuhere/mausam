@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Animated, StyleSheet, Dimensions, AppState, AppStateStatus } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Polygon, G } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Polygon, G, Circle, Line } from 'react-native-svg';
 import { useAnimationStore } from '../../store/useAnimationStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -20,6 +20,9 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
   const cloud2 = useRef(new Animated.Value(0)).current;
   const sunPulse = useRef(new Animated.Value(1)).current;
   const rainStreak = useRef(new Animated.Value(0)).current;
+  const starTwinkle = useRef(new Animated.Value(0.3)).current;
+  const shootingStarProgress = useRef(new Animated.Value(0)).current;
+  const snowDrift = useRef(new Animated.Value(0)).current;
 
   // AppState awareness for battery and CPU preservation
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
@@ -38,6 +41,9 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
       cloud2.stopAnimation();
       sunPulse.stopAnimation();
       rainStreak.stopAnimation();
+      starTwinkle.stopAnimation();
+      shootingStarProgress.stopAnimation();
+      snowDrift.stopAnimation();
       return;
     }
 
@@ -46,12 +52,12 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
       Animated.sequence([
         Animated.timing(cloud1, {
           toValue: width * 0.4,
-          duration: 12000,
+          duration: 14000,
           useNativeDriver: true,
         }),
         Animated.timing(cloud1, {
           toValue: -width * 0.2,
-          duration: 12000,
+          duration: 14000,
           useNativeDriver: true,
         }),
       ])
@@ -61,28 +67,28 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
       Animated.sequence([
         Animated.timing(cloud2, {
           toValue: -width * 0.3,
-          duration: 16000,
+          duration: 18000,
           useNativeDriver: true,
         }),
         Animated.timing(cloud2, {
           toValue: width * 0.3,
-          duration: 16000,
+          duration: 18000,
           useNativeDriver: true,
         }),
       ])
     );
 
-    // Sun breathing pulse
+    // Sun / Ambient breathing pulse
     const sunLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(sunPulse, {
-          toValue: 1.15,
-          duration: 3500,
+          toValue: 1.18,
+          duration: 3800,
           useNativeDriver: true,
         }),
         Animated.timing(sunPulse, {
           toValue: 1,
-          duration: 3500,
+          duration: 3800,
           useNativeDriver: true,
         }),
       ])
@@ -91,8 +97,50 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
     // Rain drop streaks
     const rainLoop = Animated.loop(
       Animated.timing(rainStreak, {
-        toValue: height * 0.6,
-        duration: 900,
+        toValue: height * 0.65,
+        duration: 850,
+        useNativeDriver: true,
+      })
+    );
+
+    // Starfield twinkle breathing
+    const starLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(starTwinkle, {
+          toValue: 0.95,
+          duration: 2200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(starTwinkle, {
+          toValue: 0.25,
+          duration: 2200,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Shooting star sweep (repeats every 14 seconds)
+    const shootingStarLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shootingStarProgress, {
+          toValue: 1,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+        Animated.delay(12000),
+        Animated.timing(shootingStarProgress, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Snow drift loop
+    const snowLoop = Animated.loop(
+      Animated.timing(snowDrift, {
+        toValue: height * 0.7,
+        duration: 4500,
         useNativeDriver: true,
       })
     );
@@ -101,14 +149,36 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
     cloudLoop2.start();
     sunLoop.start();
     rainLoop.start();
+    starLoop.start();
+    shootingStarLoop.start();
+    snowLoop.start();
 
     return () => {
       cloudLoop1.stop();
       cloudLoop2.stop();
       sunLoop.stop();
       rainLoop.stop();
+      starLoop.stop();
+      shootingStarLoop.stop();
+      snowLoop.stop();
     };
-  }, [animationsEnabled, isAppActive, cloud1, cloud2, sunPulse, rainStreak]);
+  }, [animationsEnabled, isAppActive, cloud1, cloud2, sunPulse, rainStreak, starTwinkle, shootingStarProgress, snowDrift]);
+
+  // Pre-calculated starfield coordinates
+  const stars = [
+    { x: width * 0.08, y: 35, r: 1.6, op: 0.8 },
+    { x: width * 0.22, y: 75, r: 2.2, op: 0.9 },
+    { x: width * 0.38, y: 28, r: 1.4, op: 0.7 },
+    { x: width * 0.52, y: 62, r: 2.6, op: 0.95 },
+    { x: width * 0.68, y: 40, r: 1.8, op: 0.8 },
+    { x: width * 0.82, y: 88, r: 2.4, op: 0.9 },
+    { x: width * 0.92, y: 30, r: 1.5, op: 0.75 },
+    { x: width * 0.15, y: 130, r: 2.0, op: 0.85 },
+    { x: width * 0.32, y: 155, r: 1.5, op: 0.65 },
+    { x: width * 0.62, y: 140, r: 2.2, op: 0.85 },
+    { x: width * 0.78, y: 165, r: 1.7, op: 0.7 },
+    { x: width * 0.88, y: 125, r: 2.5, op: 0.9 },
+  ];
 
   return (
     <View
@@ -123,14 +193,14 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
               <Defs>
                 <LinearGradient id="appleSkyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <Stop offset="0%" stopColor={theme.isDark ? '#0B192C' : '#7DD3FC'} stopOpacity="0.55" />
-                  <Stop offset="35%" stopColor={theme.isDark ? '#1E3E62' : '#BAE6FD'} stopOpacity="0.38" />
-                  <Stop offset="75%" stopColor={theme.isDark ? '#0F172A' : '#E0F2FE'} stopOpacity="0.25" />
-                  <Stop offset="100%" stopColor={theme.isDark ? '#020617' : '#F0F9FF'} stopOpacity="0.12" />
+                  <Stop offset="0%" stopColor={theme.isDark ? '#081225' : '#60A5FA'} stopOpacity="0.6" />
+                  <Stop offset="30%" stopColor={theme.isDark ? '#0F172A' : '#93C5FD'} stopOpacity="0.4" />
+                  <Stop offset="65%" stopColor={theme.isDark ? '#0B0F19' : '#DBEAFE'} stopOpacity="0.22" />
+                  <Stop offset="100%" stopColor={theme.isDark ? '#020617' : '#F8FAFC'} stopOpacity="0.08" />
                 </LinearGradient>
-                <RadialGradient id="sunAtmosphereGlow" cx="80%" cy="15%" r="60%" fx="80%" fy="15%">
-                  <Stop offset="0%" stopColor={theme.isDark ? '#38BDF8' : '#38BDF8'} stopOpacity="0.35" />
-                  <Stop offset="50%" stopColor={theme.isDark ? '#818CF8' : '#818CF8'} stopOpacity="0.15" />
+                <RadialGradient id="sunAtmosphereGlow" cx="80%" cy="14%" r="65%" fx="80%" fy="14%">
+                  <Stop offset="0%" stopColor={theme.isDark ? '#6366F1' : '#38BDF8'} stopOpacity="0.38" />
+                  <Stop offset="45%" stopColor={theme.isDark ? '#818CF8' : '#818CF8'} stopOpacity="0.18" />
                   <Stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
                 </RadialGradient>
               </Defs>
@@ -142,24 +212,24 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
             <Animated.View
               style={{
                 position: 'absolute',
-                top: 50,
+                top: 45,
                 left: -60,
-                width: width * 0.9,
-                height: 120,
-                borderRadius: 60,
-                backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                width: width * 0.95,
+                height: 125,
+                borderRadius: 65,
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
                 transform: [{ translateX: animationsEnabled ? cloud1 : 0 }],
               }}
             />
             <Animated.View
               style={{
                 position: 'absolute',
-                top: 220,
+                top: 195,
                 right: -70,
-                width: width * 0.8,
-                height: 100,
-                borderRadius: 50,
-                backgroundColor: 'rgba(255, 255, 255, 0.16)',
+                width: width * 0.85,
+                height: 105,
+                borderRadius: 55,
+                backgroundColor: 'rgba(255, 255, 255, 0.13)',
                 transform: [{ translateX: animationsEnabled ? cloud2 : 0 }],
               }}
             />
@@ -304,27 +374,136 @@ export const WeatherAtmosphere = React.memo(function WeatherAtmosphere({ weather
           </>
         )}
 
-        {/* Rain streaks for rain/storm */}
-        {weatherType === 'rain' && animationsEnabled && (
+        {/* Twinkling Starfield in Dark Theme */}
+        {theme.isDark && animationsEnabled && (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              { opacity: starTwinkle },
+            ]}
+            pointerEvents="none"
+          >
+            <Svg width="100%" height={260} style={StyleSheet.absoluteFill}>
+              {stars.map((s, idx) => (
+                <G key={idx} opacity={s.op}>
+                  <Circle cx={s.x} cy={s.y} r={s.r} fill="#E0E7FF" />
+                  {idx % 4 === 0 && (
+                    <>
+                      <Line x1={s.x - 3} y1={s.y} x2={s.x + 3} y2={s.y} stroke="#FFFFFF" strokeWidth="0.8" opacity="0.8" />
+                      <Line x1={s.x} y1={s.y - 3} x2={s.x} y2={s.y + 3} stroke="#FFFFFF" strokeWidth="0.8" opacity="0.8" />
+                    </>
+                  )}
+                </G>
+              ))}
+            </Svg>
+          </Animated.View>
+        )}
+
+        {/* Diagonal Shooting Star Animation */}
+        {theme.isDark && animationsEnabled && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 40,
+              left: width * 0.2,
+              width: 80,
+              height: 2,
+              opacity: shootingStarProgress.interpolate({
+                inputRange: [0, 0.1, 0.85, 1],
+                outputRange: [0, 1, 0.8, 0],
+              }),
+              transform: [
+                {
+                  translateX: shootingStarProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, width * 0.55],
+                  }),
+                },
+                {
+                  translateY: shootingStarProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 90],
+                  }),
+                },
+                { rotate: '32deg' },
+              ],
+            }}
+            pointerEvents="none"
+          >
+            <Svg width="80" height="2">
+              <Defs>
+                <LinearGradient id="shootingStarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0" />
+                  <Stop offset="70%" stopColor="#818CF8" stopOpacity="0.7" />
+                  <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="80" height="2" rx="1" fill="url(#shootingStarGrad)" />
+            </Svg>
+          </Animated.View>
+        )}
+
+        {/* Volumetric Rain Streaks with Slanted Drops */}
+        {(weatherType === 'rain' || weatherType === 'storm') && animationsEnabled && (
           <Animated.View
             style={[
               styles.rainStreakContainer,
               {
-                transform: [{ translateY: rainStreak }],
+                transform: [
+                  { translateY: rainStreak },
+                  { rotate: '8deg' },
+                ],
               },
             ]}
           >
-            {[1, 2, 3, 4, 5].map((i) => (
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => {
+              const dropLeft = (width / 12) * i + ((i % 3) * 6);
+              const dropTop = ((i * 35) % 240);
+              const dropHeight = 16 + (i % 4) * 5;
+              const dropOp = 0.2 + (i % 3) * 0.12;
+
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.rainDrop,
+                    {
+                      left: dropLeft,
+                      top: dropTop,
+                      height: dropHeight,
+                      backgroundColor: theme.colors.primary,
+                      opacity: dropOp,
+                    },
+                  ]}
+                />
+              );
+            })}
+          </Animated.View>
+        )}
+
+        {/* Snow Flurries */}
+        {weatherType === 'snow' && animationsEnabled && (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                transform: [{ translateY: snowDrift }],
+              },
+            ]}
+          >
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
               <View
                 key={i}
-                style={[
-                  styles.rainDrop,
-                  {
-                    left: (width / 6) * i,
-                    top: i * 40,
-                    backgroundColor: theme.colors.primary,
-                  },
-                ]}
+                style={{
+                  position: 'absolute',
+                  left: (width / 8) * i + 10,
+                  top: (i * 45) % 280,
+                  width: 6 + (i % 3) * 2,
+                  height: 6 + (i % 3) * 2,
+                  borderRadius: 5,
+                  backgroundColor: theme.colors.text,
+                  opacity: 0.35 + (i % 3) * 0.15,
+                }}
               />
             ))}
           </Animated.View>
@@ -358,16 +537,15 @@ const styles = StyleSheet.create({
   },
   rainStreakContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 300,
+    top: -50,
+    left: -20,
+    right: -20,
+    height: 380,
   },
   rainDrop: {
     position: 'absolute',
-    width: 1.5,
-    height: 16,
+    width: 1.8,
     borderRadius: 1,
-    opacity: 0.25,
   },
 });
+

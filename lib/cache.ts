@@ -12,13 +12,16 @@ const CACHE_PREFIX = 'mausam_cache_';
  * Retrieves cached data for a key. Returns null if not found.
  * `isExpired` indicates whether the item has exceeded its TTL.
  */
-export async function getCachedData<T>(key: string): Promise<{ data: T; isExpired: boolean } | null> {
+export async function getCachedData<T>(
+  key: string
+): Promise<{ data: T; isExpired: boolean; timestamp: number; ageSeconds: number } | null> {
   try {
     const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
     const envelope: CacheEnvelope<T> = JSON.parse(raw);
+    const ageSeconds = Math.max(0, Math.floor((Date.now() - envelope.timestamp) / 1000));
     const isExpired = Date.now() - envelope.timestamp > envelope.ttlMs;
-    return { data: envelope.data, isExpired };
+    return { data: envelope.data, isExpired, timestamp: envelope.timestamp, ageSeconds };
   } catch {
     return null;
   }

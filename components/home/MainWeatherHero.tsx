@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, TouchableOpacity, ActivityIndicator, Animated, AppState, AppStateStatus } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Typography } from '../ui/Typography';
 import { Icon, IconName } from '../ui/Icon';
 import { Card } from '../ui/Card';
@@ -11,7 +12,9 @@ import { useWidgetData } from '../widgets/useWidgetData';
 import { CurrentSummaryData, AqiData } from '../../lib/weatherService';
 import { useLocaleStore } from '../../store/useLocaleStore';
 import { useUnitStore } from '../../store/useUnitStore';
+import { useLocationStore } from '../../store/useLocationStore';
 import { useAnimationStore } from '../../store/useAnimationStore';
+import { calculateSolarTimes } from '../../lib/solarAlmanac';
 import { haptics } from '../../lib/haptics';
 
 interface Props {
@@ -28,6 +31,40 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
 
   const { data: weather, loading, error, refresh } = useWidgetData<CurrentSummaryData>('current_summary');
   const { data: aqi } = useWidgetData<AqiData>('aqi_card');
+  const { data: uvData } = useWidgetData<any>('uv_index');
+  const { data: rainData } = useWidgetData<any>('rain_timeline');
+
+  const locations = useLocationStore((state) => state.locations);
+  const defaultLoc = locations.find((l) => l.isDefault) || locations[0];
+
+  const solarTimes = useMemo(() => {
+    if (!defaultLoc) return null;
+    try {
+      return calculateSolarTimes(defaultLoc.lat, defaultLoc.lon);
+    } catch {
+      return null;
+    }
+  }, [defaultLoc]);
+
+  const ambianceGlowColor = useMemo(() => {
+    return theme.colors.glow || theme.colors.primary;
+  }, [theme.colors]);
+
+  const daylightChipLabel = useMemo(() => {
+    if (!solarTimes) return null;
+    const now = new Date();
+    if (solarTimes.isDaylight) {
+      const msLeft = solarTimes.sunset.getTime() - now.getTime();
+      if (msLeft <= 0) return 'Dusk approaching';
+      const h = Math.floor(msLeft / 3600000);
+      const m = Math.floor((msLeft % 3600000) / 60000);
+      return `${h}h ${m}m light`;
+    } else {
+      const riseHours = solarTimes.sunrise.getHours().toString().padStart(2, '0');
+      const riseMins = solarTimes.sunrise.getMinutes().toString().padStart(2, '0');
+      return `Dawn at ${riseHours}:${riseMins}`;
+    }
+  }, [solarTimes]);
 
   // Lean animated values initialized via ref (zero re-render allocations)
   const floatAnim = useRef(new Animated.Value(0)).current;
@@ -212,7 +249,7 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
   const windDir = weather?.windDirection ?? '';
 
   const aqiIsWarning = aqi && aqi.aqi > 100;
-  const aqiBg = aqiIsWarning ? (theme.colors.errorBg || '#EF444420') : (theme.colors.successBg || '#10B98120');
+  const aqiBg = aqiIsWarning ? (theme.colors.errorBg || (theme.colors.error + '20')) : (theme.colors.successBg || (theme.colors.success + '20'));
   const aqiTextColor = aqiIsWarning ? theme.colors.error : theme.colors.success;
   const aqiBorder = aqiIsWarning ? (theme.colors.error + '40') : (theme.colors.success + '40');
 
@@ -224,8 +261,34 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
         marginBottom: 12,
         padding: theme.spacing.l,
         borderRadius: theme.shapes.borderRadius.l,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* Weather Ambiance Dynamic Atmosphere Glow */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          borderRadius: theme.shapes.borderRadius.l,
+          overflow: 'hidden',
+        }}
+      >
+        <Svg width="100%" height="100%">
+          <Defs>
+            <RadialGradient id="heroAtmosphereGlow" cx="82%" cy="28%" rx="72%" ry="58%" fx="82%" fy="28%">
+              <Stop offset="0%" stopColor={ambianceGlowColor} stopOpacity={theme.isDark ? 0.32 : 0.20} />
+              <Stop offset="55%" stopColor={ambianceGlowColor} stopOpacity={theme.isDark ? 0.08 : 0.04} />
+              <Stop offset="100%" stopColor={ambianceGlowColor} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroAtmosphereGlow)" />
+        </Svg>
+      </View>
       {/* Top Header: Location Name & Live Badge */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <TouchableOpacity
@@ -313,10 +376,10 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
             <Typography
               variant="h1"
               style={{
-                fontSize: 78,
-                fontWeight: '700',
-                lineHeight: 82,
-                letterSpacing: -2.5,
+                fontSize: 82,
+                fontWeight: '400',
+                lineHeight: 88,
+                letterSpacing: 0.5,
                 color: theme.colors.text,
                 fontVariant: ['tabular-nums'],
               }}
@@ -325,11 +388,11 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
             </Typography>
             <Typography
               variant="h2"
-              color={theme.colors.primary}
+              color={theme.colors.textSecondary}
               style={{
-                fontSize: 34,
-                fontWeight: '400',
-                marginTop: 6,
+                fontSize: 38,
+                fontWeight: '300',
+                marginTop: 4,
                 marginLeft: 2,
               }}
             >
@@ -342,11 +405,11 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
             variant="bodyMedium"
             numberOfLines={1}
             style={{
-              fontWeight: '700',
+              fontWeight: '600',
               fontSize: 18,
               marginTop: 4,
               color: theme.colors.text,
-              letterSpacing: -0.2,
+              letterSpacing: -0.3,
             }}
           >
             {desc}
@@ -362,15 +425,15 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
               paddingHorizontal: 10,
               paddingVertical: 4,
               borderRadius: theme.artDirection?.cardStyle === 'flat2d' ? 4 : 10,
-              borderWidth: theme.artDirection?.cardStyle === 'flat2d' ? 1.5 : 0,
-              borderColor: '#264653',
+              borderWidth: 1,
+              borderColor: theme.colors.border,
               backgroundColor: theme.colors.surfaceSecondary,
             }}
           >
-            <Typography variant="caption" color={theme.colors.text} style={{ fontWeight: '700', fontSize: 12 }}>
+            <Typography variant="caption" color={theme.colors.text} style={{ fontWeight: '600', fontSize: 12 }}>
               H: {high}° &bull; L: {low}°
             </Typography>
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '600', fontSize: 12, marginLeft: 6 }}>
+            <Typography variant="caption" color={theme.colors.textSecondary} style={{ fontWeight: '500', fontSize: 12, marginLeft: 6 }}>
               {t('feelsLike')} {feelsLike}°
             </Typography>
           </View>
@@ -382,21 +445,120 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
             width: 96,
             height: 96,
             borderRadius: theme.artDirection?.cardStyle === 'flat2d' ? 16 : 48,
-            borderWidth: theme.artDirection?.cardStyle === 'flat2d' ? 2 : 0,
-            borderColor: '#264653',
+            borderWidth: 1,
+            borderColor: theme.colors.border,
             backgroundColor: theme.colors.surfaceSecondary,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: theme.artDirection?.cardStyle === 'flat2d' ? '#264653' : theme.colors.primary,
-            shadowOffset: theme.artDirection?.cardStyle === 'flat2d' ? { width: 3, height: 3 } : { width: 0, height: 8 },
-            shadowOpacity: theme.artDirection?.cardStyle === 'flat2d' ? 1 : 0.15,
-            shadowRadius: theme.artDirection?.cardStyle === 'flat2d' ? 0 : 16,
+            shadowColor: theme.colors.primary,
+            shadowOffset: theme.artDirection?.cardStyle === 'flat2d' ? { width: 2, height: 2 } : { width: 0, height: 6 },
+            shadowOpacity: theme.isDark ? 0.2 : 0.08,
+            shadowRadius: 12,
             elevation: 0,
             transform: [{ translateY: floatAnim }],
           }}
         >
           <Icon name={icon} size={54} color={theme.colors.primary} />
         </Animated.View>
+      </View>
+
+      {/* Environmental Safety & Comfort Micro-Pills Strip */}
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 6,
+          marginTop: 10,
+          marginBottom: 2,
+        }}
+      >
+        {/* UV Index Badge */}
+        {uvData?.uvIndex != null && (
+          <View
+            accessible={true}
+            accessibilityRole="text"
+            accessibilityLabel={`UV Index: ${uvData.uvIndex}, ${uvData.level || 'Moderate'}`}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 8,
+              paddingVertical: 3.5,
+              borderRadius: 8,
+              backgroundColor: theme.colors.surfaceSecondary,
+              borderWidth: 1,
+              borderColor: uvData.uvIndex >= 6 ? theme.colors.warning : theme.colors.border,
+            }}
+          >
+            <Icon
+              name="shield"
+              size={11}
+              color={uvData.uvIndex >= 6 ? theme.colors.warning : theme.colors.primary}
+            />
+            <Typography
+              variant="caption"
+              color={uvData.uvIndex >= 6 ? theme.colors.warning : theme.colors.text}
+              style={{ marginLeft: 4, fontWeight: '700', fontSize: 11, fontVariant: ['tabular-nums'] }}
+            >
+              UV {uvData.uvIndex} {uvData.level ? `• ${uvData.level}` : ''}
+            </Typography>
+          </View>
+        )}
+
+        {/* Rain Probability Badge */}
+        {rainData?.timeline?.[0]?.prob != null && (
+          <View
+            accessible={true}
+            accessibilityRole="text"
+            accessibilityLabel={`Rain probability: ${rainData.timeline[0].prob} percent`}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 8,
+              paddingVertical: 3.5,
+              borderRadius: 8,
+              backgroundColor: theme.colors.surfaceSecondary,
+              borderWidth: 1,
+              borderColor: rainData.timeline[0].prob > 50 ? theme.colors.primary : theme.colors.border,
+            }}
+          >
+            <Icon name="droplet" size={11} color={theme.colors.primary} />
+            <Typography
+              variant="caption"
+              color={theme.colors.text}
+              style={{ marginLeft: 4, fontWeight: '700', fontSize: 11, fontVariant: ['tabular-nums'] }}
+            >
+              {rainData.timeline[0].prob}% Rain
+            </Typography>
+          </View>
+        )}
+
+        {/* Daylight / Night Celestial Badge */}
+        {daylightChipLabel && (
+          <View
+            accessible={true}
+            accessibilityRole="text"
+            accessibilityLabel={daylightChipLabel}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 8,
+              paddingVertical: 3.5,
+              borderRadius: 8,
+              backgroundColor: theme.colors.surfaceSecondary,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+            }}
+          >
+            <Icon name={solarTimes?.isDaylight ? 'sun' : 'moon'} size={11} color={theme.colors.primary} />
+            <Typography
+              variant="caption"
+              color={theme.colors.textSecondary}
+              style={{ marginLeft: 4, fontWeight: '600', fontSize: 11 }}
+            >
+              {daylightChipLabel}
+            </Typography>
+          </View>
+        )}
       </View>
 
       {/* Modern 3-Column Atmospheric Micro-Telemetry Deck */}

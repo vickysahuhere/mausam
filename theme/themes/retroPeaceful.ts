@@ -25,7 +25,7 @@ export const RetroPeacefulTheme: MausamTheme = {
     glow: 'rgba(231, 111, 81, 0.15)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 16, l: 22, xl: 30, xxl: 40 },
   },
   spacing: { xs: 6, s: 12, m: 18, l: 26, xl: 36, xxl: 52 },

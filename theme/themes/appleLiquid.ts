@@ -35,7 +35,7 @@ export const AppleLiquidTheme: MausamTheme = {
     glow: 'rgba(56, 189, 248, 0.40)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 16, l: 22, xl: 28, xxl: 38 },
   },
   spacing: { xs: 4, s: 10, m: 16, l: 24, xl: 32, xxl: 48 },

@@ -133,8 +133,12 @@ test('Companion Store: Interactive state transitions & user bonding', async () =
   store.tapCat(); // tap 1: wave
   assert.equal(useCompanionStore.getState().currentState.pose, 'wave');
 
-  store.tapCat(); // tap 2: bongo_tap
+  store.tapCat(); // tap 2: sit
+  assert.equal(useCompanionStore.getState().currentState.pose, 'sit');
+
+  store.tapCat(); // tap 3: bongo easter egg
   assert.equal(useCompanionStore.getState().currentState.pose, 'bongo_tap');
+  assert.equal(useCompanionStore.getState().currentState.speechText, 'Ba-dum! You found the secret bongo rhythm!');
 
   // Toggle enabled/disabled
   await store.setEnabled(false);
@@ -276,15 +280,99 @@ test('Cat Sound Manager: Cooldown debounce and preference controls', async () =>
   assert.equal(soundsPlayed.length, 1);
   assert.equal(soundsPlayed[0], 'meow');
 
-  // Rapid immediate second sound should be debounced
+  // Rapid immediate second sound should be debounced or queued
   const played2 = catSoundManager.playPurr();
-  assert.equal(played2, false, 'Should debounce within cooldown window');
+  assert.equal(played2, false, 'Low priority should not queue or play during active playback');
 
   // Disable sound preference
   await catSoundManager.setSoundEnabled(false);
   assert.equal(catSoundManager.getSoundEnabled(), false);
   const playedWhenDisabled = catSoundManager.playMeow();
   assert.equal(playedWhenDisabled, false, 'Should not play when sound preference is disabled');
+
+  // Cleanup
+  unregister();
+  await catSoundManager.setSoundEnabled(true);
+});
+
+test('Cat Sound Manager: Single Concurrency, Priority Preemption, and 1-Slot Queue', async () => {
+  const { catSoundManager, CatAudioPriority, SOUND_SPECS } = require('../lib/cat/catSoundManager');
+  const { CAT_AUDIO_DATA_URIS } = require('../lib/cat/catAudioData');
+
+  // 1. Verify all 9 sounds exist in audio assets and sound specifications
+  const expectedSounds = ['meow', 'happy_meow', 'tiny_meow', 'chirp', 'purr', 'surprised', 'playful', 'yawn', 'bongo'];
+  for (const s of expectedSounds) {
+    assert.ok(CAT_AUDIO_DATA_URIS[s], `Audio asset missing for ${s}`);
+    assert.ok(SOUND_SPECS[s], `Sound spec missing for ${s}`);
+    assert.ok(SOUND_SPECS[s].durationMs > 0, `Invalid duration for ${s}`);
+    assert.ok(SOUND_SPECS[s].volumeMultiplier > 0 && SOUND_SPECS[s].volumeMultiplier <= 1.0, `Invalid volume factor for ${s}`);
+  }
+
+  catSoundManager.resetCooldown();
+  await catSoundManager.setSoundEnabled(true);
+
+  let playHistory: string[] = [];
+  let stopCount = 0;
+
+  const unregister = catSoundManager.registerBridge({
+    play: (sound) => {
+      playHistory.push(sound);
+    },
+    stop: () => {
+      stopCount++;
+    },
+  });
+
+  // 2. Play ambient PURR (Priority LOW)
+  const playedPurr = catSoundManager.playPurr();
+  assert.equal(playedPurr, true);
+  assert.equal(catSoundManager.getIsPlaying(), true);
+  assert.equal(catSoundManager.getCurrentSound(), 'purr');
+  assert.equal(playHistory.length, 1);
+  assert.equal(playHistory[0], 'purr');
+
+  // 3. Purr is interruptible: User taps cat -> playMeow (Priority NORMAL) interrupts Purr
+  const playedMeow = catSoundManager.playMeow();
+  assert.equal(playedMeow, true, 'Normal priority should interrupt ambient purr immediately');
+  assert.equal(stopCount, 1, 'Stop should have been called on the bridge for purr');
+  assert.equal(catSoundManager.getCurrentSound(), 'meow');
+  assert.equal(playHistory.length, 2);
+  assert.equal(playHistory[1], 'meow');
+
+  // 4. While MEOW is playing, another NORMAL sound (chirp) arrives -> Queued, not overlapped!
+  const playedChirp = catSoundManager.playChirp();
+  assert.equal(playedChirp, true, 'Chirp should be accepted into the 1-slot queue');
+  assert.equal(playHistory.length, 2, 'Chirp must NOT start playing yet (no overlapping!)');
+
+  // 5. While MEOW is still playing, a CRITICAL / HIGH emergency alert arrives -> Preempts MEOW immediately!
+  const playedAlert = catSoundManager.playSurprised();
+  assert.equal(playedAlert, true, 'High priority alert should preempt playing sound');
+  assert.ok(stopCount >= 2, 'Stop should have been called on the bridge to halt meow');
+  assert.equal(catSoundManager.getCurrentSound(), 'surprised');
+  assert.equal(playHistory.length, 3);
+  assert.equal(playHistory[2], 'surprised');
+
+  // 6. Alert finishes playback -> reports to manager
+  catSoundManager.notifyPlaybackEnded('surprised');
+  // 1-slot queue automatically dequeues and plays chirp!
+  assert.equal(catSoundManager.getCurrentSound(), 'chirp');
+  assert.equal(catSoundManager.getIsPlaying(), true);
+  assert.equal(playHistory.length, 4);
+  assert.equal(playHistory[3], 'chirp');
+
+  // When queued chirp finishes:
+  catSoundManager.notifyPlaybackEnded('chirp');
+  assert.equal(catSoundManager.getIsPlaying(), false);
+  assert.equal(catSoundManager.getCurrentSound(), null);
+
+  // 7. Test Mute halting active playback
+  catSoundManager.resetCooldown();
+  catSoundManager.playMeow();
+  assert.equal(catSoundManager.getIsPlaying(), true);
+  const currentStops = stopCount;
+  await catSoundManager.setSoundEnabled(false);
+  assert.equal(catSoundManager.getIsPlaying(), false, 'Playback should stop when muted');
+  assert.ok(stopCount > currentStops, 'Stop must be triggered when sound is disabled');
 
   // Cleanup
   unregister();
@@ -366,12 +454,19 @@ test('Cat Interaction: Single tap, consecutive tap combo easter egg & cuddle', (
   const combo = CatStateEngine.computeInteractionReaction('single_tap', 3);
   assert.equal(combo.mood, 'excited');
   assert.equal(combo.pose, 'bongo_tap');
-  assert.equal(combo.sound, 'happy_meow');
+  assert.equal(combo.sound, 'bongo');
   assert.ok(combo.message?.text.includes('bongo'));
 
   // Long press cuddle
   const longPress = CatStateEngine.computeInteractionReaction('long_press');
   assert.equal(longPress.sound, 'purr');
   assert.ok(longPress.message?.text.includes('purrs'));
+
+  // Test skipReaction returns Mimi to perch
+  const store = useCompanionStore.getState();
+  store.petCat();
+  store.skipReaction();
+  assert.equal(useCompanionStore.getState().currentState.pose, 'perch');
+  assert.equal(useCompanionStore.getState().currentState.speechText, null);
 });
 

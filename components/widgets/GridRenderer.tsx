@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, RefreshControlProps } from 'react-native';
 import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import { useLayoutStore, LayoutItem } from '../../store/useLayoutStore';
 import {
@@ -24,6 +24,9 @@ import {
   ComfortIndexWidget,
   SecondaryLocationsWidget,
   CompanionCardWidget,
+  WindCompassWidget,
+  BarometerPressureWidget,
+  MoonPhaseWidget,
 } from './WeatherWidgets';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useLocaleStore } from '../../store/useLocaleStore';
@@ -54,14 +57,24 @@ const WIDGET_MAP: Record<string, React.FC<any>> = {
   comfort_index: ComfortIndexWidget,
   secondary_locations: SecondaryLocationsWidget,
   companion_card: CompanionCardWidget,
+  wind_compass: WindCompassWidget,
+  barometer_pressure: BarometerPressureWidget,
+  moon_phase: MoonPhaseWidget,
 };
 
 interface GridRendererProps {
   isCustomizing: boolean;
   headerComponent?: React.ReactElement | null;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
+  emptyComponent?: React.ReactElement | null;
 }
 
-export function GridRenderer({ isCustomizing, headerComponent }: GridRendererProps) {
+export function GridRenderer({
+  isCustomizing,
+  headerComponent,
+  refreshControl,
+  emptyComponent,
+}: GridRendererProps) {
   const { layout, removeWidget, setLayout } = useLayoutStore();
   const theme = useTheme();
   const t = useLocaleStore((state) => state.t);
@@ -220,22 +233,27 @@ export function GridRenderer({ isCustomizing, headerComponent }: GridRendererPro
       showsVerticalScrollIndicator={false}
       onScroll={handleScroll}
       scrollEventThrottle={160}
+      refreshControl={refreshControl ?? undefined}
     >
       {headerComponent}
-      {displayLayout.map((item) => {
-        const WidgetComponent = WIDGET_MAP[item.type];
-        if (!WidgetComponent) return null;
+      {displayLayout.length === 0 && emptyComponent ? (
+        emptyComponent
+      ) : (
+        displayLayout.map((item) => {
+          const WidgetComponent = WIDGET_MAP[item.type];
+          if (!WidgetComponent) return null;
 
-        return (
-          <View key={item.id}>
-            <WidgetComponent
-              id={item.id}
-              isCustomizing={false}
-              onRemove={() => removeWidget(item.id)}
-            />
-          </View>
-        );
-      })}
+          return (
+            <View key={item.id}>
+              <WidgetComponent
+                id={item.id}
+                isCustomizing={false}
+                onRemove={() => removeWidget(item.id)}
+              />
+            </View>
+          );
+        })
+      )}
       <View style={{ height: 110 }} />
     </ScrollView>
   );

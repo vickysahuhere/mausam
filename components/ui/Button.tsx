@@ -44,10 +44,13 @@ export function Button({ title, variant = 'primary', loading, style, ...props }:
   const textStyle: TextStyle = {
     fontSize: theme.typography.sizes.m,
     color: getTextColor(),
-    fontFamily: theme.typography.fontFamily.bold,
+    fontFamily: (theme.typography.fontFamily.bold && theme.typography.fontFamily.bold !== 'System')
+      ? theme.typography.fontFamily.bold
+      : 'KinderChildKawaiiBubble',
     textAlign: 'center',
     flexShrink: 1,
     includeFontPadding: false,
+    letterSpacing: 0.4,
   };
 
   return (

@@ -25,7 +25,7 @@ export const FitnessTheme: MausamTheme = {
     glow: 'rgba(163, 230, 53, 0.28)', // Neon aura
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 16, l: 22, xl: 30, xxl: 42 },
   },
   spacing: { xs: 4, s: 8, m: 16, l: 24, xl: 32, xxl: 48 },

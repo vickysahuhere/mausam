@@ -25,7 +25,7 @@ export const AgricultureTheme: MausamTheme = {
     glow: 'rgba(21, 128, 61, 0.15)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 16, l: 20, xl: 26, xxl: 34 },
   },
   spacing: { xs: 4, s: 8, m: 16, l: 24, xl: 32, xxl: 48 },

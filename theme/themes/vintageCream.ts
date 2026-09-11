@@ -34,7 +34,7 @@ export const VintageCreamTheme: MausamTheme = {
     glow: 'rgba(133, 77, 14, 0.25)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 16, l: 20, xl: 26, xxl: 36 },
   },
   spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 36 },

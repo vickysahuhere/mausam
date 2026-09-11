@@ -1,187 +1,132 @@
 /**
  * Cat Sound Bridge
- * Procedural Audio Synthesizer for Mausam Cat Companion
- * Runs pure Web Audio oscillator synthesis (no external audio files, zero copyright, crash-proof).
+ * High-Fidelity Audio Engine for Mausam Cat Companion
+ *
+ * Runs pure, zero-external-dependency embedded CC0 audio playback
+ * with single-playback concurrency, instant interruption, and stop controls.
+ * Supported on both React Native WebView (native Android) and HTML5 Audio (Expo Web).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Platform, StyleSheet } from 'react-native';
-import { catSoundManager } from '../../lib/cat/catSoundManager';
+import { View, Platform, StyleSheet, AppState } from 'react-native';
+import { catSoundManager, CatAudioPriority } from '../../lib/cat/catSoundManager';
 import { CatSound } from '../../lib/cat/catTypes';
+import { CAT_AUDIO_DATA_URIS } from '../../lib/cat/catAudioData';
 
-import {
-  CUTE_KITTEN_MEOW_DATA_URI,
-  HAPPY_MEOW_DATA_URI,
-  TINY_MEOW_DATA_URI,
-  REAL_PURR_DATA_URI,
-} from '../../lib/cat/catAudioData';
-
-// HTML/JS payload for native WebView synthesizer with authentic cute audio playback
-const WEBVIEW_SYNTH_HTML = `
+// Self-contained HTML/JS payload for native WebView audio engine
+const WEBVIEW_AUDIO_ENGINE_HTML = `
 <!DOCTYPE html>
 <html>
-<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
 <body style="margin:0;padding:0;background:transparent;">
 <script>
-  let ctx = null;
   const audioMap = {
-    meow: "${CUTE_KITTEN_MEOW_DATA_URI}",
-    happy_meow: "${HAPPY_MEOW_DATA_URI}",
-    tiny_meow: "${TINY_MEOW_DATA_URI}",
-    chirp: "${TINY_MEOW_DATA_URI}",
-    purr: "${REAL_PURR_DATA_URI}",
-    yawn: "${CUTE_KITTEN_MEOW_DATA_URI}",
-    surprised: "${CUTE_KITTEN_MEOW_DATA_URI}",
-    playful: "${HAPPY_MEOW_DATA_URI}"
+    meow: "${CAT_AUDIO_DATA_URIS.meow}",
+    happy_meow: "${CAT_AUDIO_DATA_URIS.happy_meow}",
+    tiny_meow: "${CAT_AUDIO_DATA_URIS.tiny_meow}",
+    chirp: "${CAT_AUDIO_DATA_URIS.chirp}",
+    purr: "${CAT_AUDIO_DATA_URIS.purr}",
+    yawn: "${CAT_AUDIO_DATA_URIS.yawn}",
+    surprised: "${CAT_AUDIO_DATA_URIS.surprised}",
+    playful: "${CAT_AUDIO_DATA_URIS.playful}",
+    bongo: "${CAT_AUDIO_DATA_URIS.bongo}"
   };
-  const audioCache = {};
 
-  function getAudioCtx() {
-    if (!ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) ctx = new AudioCtx();
-    }
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume();
-    }
-    return ctx;
+  const audioCache = {};
+  let currentAudio = null;
+
+  function notifyEnded(sound) {
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ action: 'ended', sound: sound }));
+      }
+    } catch(e) {}
   }
 
-  function getCatAudio(sound) {
+  function getAudio(sound) {
     const key = audioMap[sound] ? sound : 'meow';
     if (!audioCache[key] && audioMap[key]) {
       try {
-        const audio = new Audio(audioMap[key]);
-        audio.preload = "auto";
-        audioCache[key] = audio;
+        const a = new Audio(audioMap[key]);
+        a.preload = "auto";
+        audioCache[key] = a;
       } catch(e) {}
     }
     return audioCache[key];
   }
 
-  function playSynth(sound, vol) {
-    const targetVol = Math.min(Math.max(vol || 0.75, 0.1), 1.0);
+  // Preload most common sounds immediately
+  ['meow', 'happy_meow', 'tiny_meow', 'purr'].forEach(function(s) {
+    getAudio(s);
+  });
 
-    // 1. First priority: Play authentic cute kitten vocalizations and purrs
-    const audio = getCatAudio(sound);
-    if (audio) {
+  function stopPlayback() {
+    if (currentAudio) {
       try {
-        audio.currentTime = 0;
-        audio.volume = targetVol;
-        if (sound === 'chirp') audio.playbackRate = 1.35;
-        else if (sound === 'yawn') audio.playbackRate = 0.8;
-        else if (sound === 'surprised') audio.playbackRate = 1.25;
-        else if (sound === 'tiny_meow') audio.playbackRate = 1.15;
-        else audio.playbackRate = 1.0;
-
-        const p = audio.play();
-        if (p && p.catch) {
-          p.catch(function() {
-            playProcedural(sound, targetVol);
-          });
-        }
-        return;
-      } catch(err) {
-        playProcedural(sound, targetVol);
-        return;
-      }
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio.onended = null;
+      } catch(e) {}
+      currentAudio = null;
     }
-
-    // 2. Fallback to procedural synth if media fails
-    playProcedural(sound, targetVol);
   }
 
-  function playProcedural(sound, vol) {
+  function playSound(sound, volume) {
+    const targetVol = Math.min(Math.max(volume || 0.7, 0.05), 1.0);
+
+    // Stop any existing playback first — STRICT SINGLE PLAYBACK POLICY
+    stopPlayback();
+
+    const audio = getAudio(sound);
+    if (!audio) return;
+
     try {
-      const c = getAudioCtx();
-      if (!c) return;
-      const t = c.currentTime;
-      const masterGain = c.createGain();
-      masterGain.gain.setValueAtTime(vol * 0.45, t);
-      masterGain.connect(c.destination);
+      audio.currentTime = 0;
+      audio.volume = targetVol;
+      audio.playbackRate = 1.0; // Clean natural rate — zero artificial pitch distortion
 
-      if (sound === 'purr') {
-        // Deep rhythmic feline purr motor vibration
-        const carrier = c.createOscillator();
-        const lfo = c.createOscillator();
-        const lfoGain = c.createGain();
-        const filter = c.createBiquadFilter();
-        const g = c.createGain();
+      audio.onended = function() {
+        if (currentAudio === audio) {
+          currentAudio = null;
+          notifyEnded(sound);
+        }
+      };
 
-        carrier.type = 'triangle';
-        carrier.frequency.setValueAtTime(54, t);
-
-        lfo.type = 'sawtooth';
-        lfo.frequency.setValueAtTime(28, t);
-        lfoGain.gain.setValueAtTime(22, t);
-
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(320, t);
-
-        lfo.connect(carrier.frequency);
-        carrier.connect(filter);
-        filter.connect(g);
-        g.connect(masterGain);
-
-        g.gain.setValueAtTime(0.01, t);
-        g.gain.linearRampToValueAtTime(0.65, t + 0.15);
-        g.gain.linearRampToValueAtTime(0.5, t + 0.55);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
-
-        lfo.start(t);
-        carrier.start(t);
-        lfo.stop(t + 0.9);
-        carrier.stop(t + 0.9);
-      } else {
-        // High harmonic vocal formant cute meow fallback
-        const osc = c.createOscillator();
-        const g = c.createGain();
-        const f1 = c.createBiquadFilter();
-
-        osc.type = 'triangle';
-        const startFreq = sound === 'happy_meow' ? 680 : sound === 'tiny_meow' ? 880 : 540;
-        const peakFreq = sound === 'happy_meow' ? 980 : sound === 'tiny_meow' ? 1200 : 820;
-        const endFreq = sound === 'happy_meow' ? 620 : sound === 'tiny_meow' ? 820 : 460;
-
-        osc.frequency.setValueAtTime(startFreq, t);
-        osc.frequency.exponentialRampToValueAtTime(peakFreq, t + 0.12);
-        osc.frequency.exponentialRampToValueAtTime(endFreq, t + 0.36);
-
-        f1.type = 'bandpass';
-        f1.frequency.setValueAtTime(800, t);
-        f1.frequency.exponentialRampToValueAtTime(1600, t + 0.18);
-        f1.Q.setValueAtTime(3.0, t);
-
-        g.gain.setValueAtTime(0.01, t);
-        g.gain.linearRampToValueAtTime(0.85, t + 0.08);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-
-        osc.connect(f1);
-        f1.connect(g);
-        g.connect(masterGain);
-        osc.start(t);
-        osc.stop(t + 0.42);
+      currentAudio = audio;
+      const p = audio.play();
+      if (p && p.catch) {
+        p.catch(function(err) {
+          if (currentAudio === audio) {
+            currentAudio = null;
+            notifyEnded(sound);
+          }
+        });
       }
-    } catch(e) {}
+    } catch(err) {
+      currentAudio = null;
+      notifyEnded(sound);
+    }
   }
 
-  window.playSynth = playSynth;
-  window.addEventListener('message', function(e) {
+  window.playSound = playSound;
+  window.stopPlayback = stopPlayback;
+
+  function handleMessage(event) {
     try {
-      const data = JSON.parse(e.data);
-      if (data && data.action === 'play') {
-        playSynth(data.sound, data.volume);
+      const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      if (!data) return;
+      if (data.action === 'play') {
+        playSound(data.sound, data.volume);
+      } else if (data.action === 'stop') {
+        stopPlayback();
       }
     } catch (err) {}
-  });
-  document.addEventListener('message', function(e) {
-    try {
-      const data = JSON.parse(e.data);
-      if (data && data.action === 'play') {
-        playSynth(data.sound, data.volume);
-      }
-    } catch (err) {}
-  });
+  }
+
+  window.addEventListener('message', handleMessage);
+  document.addEventListener('message', handleMessage);
 </script>
 </body>
 </html>
@@ -200,25 +145,50 @@ export const CatSoundBridge = React.memo(function CatSoundBridge() {
       activeBridgeInstanceId = instanceId;
     }
 
-    const unregister = catSoundManager.registerBridge((sound: CatSound, volume: number) => {
-      try {
-        if (Platform.OS === 'web') {
-          playWebSynth(sound, volume);
-        } else if (webViewRef.current && activeBridgeInstanceId === instanceId) {
-          const payload = JSON.stringify({ action: 'play', sound, volume });
-          webViewRef.current.postMessage(payload);
-          if (webViewRef.current.injectJavaScript) {
-            webViewRef.current.injectJavaScript(
-              `(function() { try { if (window.playSynth) { window.playSynth('${sound}', ${volume}); } } catch(e) {} })(); true;`
-            );
+    const unregister = catSoundManager.registerBridge({
+      play: (sound: CatSound, volume: number, _priority: CatAudioPriority) => {
+        if (!catSoundManager.getSoundEnabled()) return;
+        try {
+          if (Platform.OS === 'web') {
+            playWebAudio(sound, volume);
+          } else if (webViewRef.current && activeBridgeInstanceId === instanceId) {
+            const payload = JSON.stringify({ action: 'play', sound, volume });
+            webViewRef.current.postMessage(payload);
+            if (webViewRef.current.injectJavaScript) {
+              webViewRef.current.injectJavaScript(
+                `(function() { try { if (window.playSound) { window.playSound('${sound}', ${volume}); } } catch(e) {} })(); true;`
+              );
+            }
           }
+        } catch {
+          // Audio errors must never crash the app
         }
-      } catch {
-        // Must never crash
-      }
+      },
+      stop: () => {
+        try {
+          if (Platform.OS === 'web') {
+            stopWebAudio();
+          } else if (webViewRef.current && activeBridgeInstanceId === instanceId) {
+            const payload = JSON.stringify({ action: 'stop' });
+            webViewRef.current.postMessage(payload);
+            if (webViewRef.current.injectJavaScript) {
+              webViewRef.current.injectJavaScript(
+                `(function() { try { if (window.stopPlayback) { window.stopPlayback(); } } catch(e) {} })(); true;`
+              );
+            }
+          }
+        } catch {
+          // Audio errors must never crash the app
+        }
+      },
+    });
+
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      catSoundManager.handleAppStateChange(nextState);
     });
 
     return () => {
+      appStateSub.remove();
       unregister();
       if (activeBridgeInstanceId === instanceId) {
         activeBridgeInstanceId = null;
@@ -238,7 +208,7 @@ export const CatSoundBridge = React.memo(function CatSoundBridge() {
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: WEBVIEW_SYNTH_HTML }}
+        source={{ html: WEBVIEW_AUDIO_ENGINE_HTML }}
         style={styles.hiddenWebView}
         javaScriptEnabled={true}
         domStorageEnabled={false}
@@ -252,83 +222,73 @@ export const CatSoundBridge = React.memo(function CatSoundBridge() {
         scrollEnabled={false}
         overScrollMode="never"
         androidLayerType="hardware"
+        onMessage={(event: any) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data && data.action === 'ended' && data.sound) {
+              catSoundManager.notifyPlaybackEnded(data.sound);
+            }
+          } catch {
+            // Ignore non-json messages
+          }
+        }}
       />
     </View>
   );
 });
 
-// In-browser Web Audio runner for Expo Web
-let webAudioContext: any = null;
-const webAudioCache: Record<string, HTMLAudioElement> = {};
+// Clean Web Audio runner for Expo Web
+let currentWebAudio: HTMLAudioElement | null = null;
+const webAudioCache: Partial<Record<CatSound, HTMLAudioElement>> = {};
 
-function playWebSynth(sound: CatSound, volume: number) {
+function stopWebAudio() {
+  if (currentWebAudio) {
+    try {
+      currentWebAudio.pause();
+      currentWebAudio.currentTime = 0;
+      currentWebAudio.onended = null;
+    } catch {}
+    currentWebAudio = null;
+  }
+}
+
+function playWebAudio(sound: CatSound, volume: number) {
   try {
     if (typeof window === 'undefined') return;
-    const targetVol = Math.min(Math.max(volume || 0.75, 0.1), 1.0);
 
-    const map: Record<string, string> = {
-      meow: CUTE_KITTEN_MEOW_DATA_URI,
-      happy_meow: HAPPY_MEOW_DATA_URI,
-      tiny_meow: TINY_MEOW_DATA_URI,
-      chirp: TINY_MEOW_DATA_URI,
-      purr: REAL_PURR_DATA_URI,
-      yawn: CUTE_KITTEN_MEOW_DATA_URI,
-      surprised: CUTE_KITTEN_MEOW_DATA_URI,
-      playful: HAPPY_MEOW_DATA_URI,
-    };
-    const key = map[sound] ? sound : 'meow';
+    // Strict single playback: stop existing sound immediately
+    stopWebAudio();
 
-    if (!webAudioCache[key]) {
-      const a = new Audio(map[key]);
+    const dataUri = CAT_AUDIO_DATA_URIS[sound] || CAT_AUDIO_DATA_URIS.meow;
+    if (!webAudioCache[sound]) {
+      const a = new Audio(dataUri);
       a.preload = 'auto';
-      webAudioCache[key] = a;
+      webAudioCache[sound] = a;
     }
 
-    const audio = webAudioCache[key];
+    const audio = webAudioCache[sound];
     if (audio) {
       audio.currentTime = 0;
-      audio.volume = targetVol;
-      if (sound === 'chirp') audio.playbackRate = 1.35;
-      else if (sound === 'yawn') audio.playbackRate = 0.8;
-      else if (sound === 'surprised') audio.playbackRate = 1.25;
-      else if (sound === 'tiny_meow') audio.playbackRate = 1.15;
-      else audio.playbackRate = 1.0;
-      audio.play().catch(() => {});
-      return;
+      audio.volume = Math.min(Math.max(volume || 0.7, 0.05), 1.0);
+      audio.playbackRate = 1.0;
+
+      audio.onended = () => {
+        if (currentWebAudio === audio) {
+          currentWebAudio = null;
+          catSoundManager.notifyPlaybackEnded(sound);
+        }
+      };
+
+      currentWebAudio = audio;
+      audio.play().catch(() => {
+        if (currentWebAudio === audio) {
+          currentWebAudio = null;
+          catSoundManager.notifyPlaybackEnded(sound);
+        }
+      });
     }
-
-    const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    if (!webAudioContext) {
-      webAudioContext = new AudioCtx();
-    }
-    if (webAudioContext.state === 'suspended') {
-      webAudioContext.resume();
-    }
-    const t = webAudioContext.currentTime;
-    const master = webAudioContext.createGain();
-    master.gain.setValueAtTime(targetVol * 0.4, t);
-    master.connect(webAudioContext.destination);
-
-    const osc = webAudioContext.createOscillator();
-    const g = webAudioContext.createGain();
-    osc.type = sound === 'purr' ? 'sawtooth' : 'triangle';
-
-    const startFreq = sound === 'purr' ? 55 : 580;
-    const endFreq = sound === 'purr' ? 55 : 820;
-    osc.frequency.setValueAtTime(startFreq, t);
-    osc.frequency.exponentialRampToValueAtTime(endFreq, t + 0.25);
-
-    g.gain.setValueAtTime(0.01, t);
-    g.gain.linearRampToValueAtTime(0.7, t + 0.05);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-
-    osc.connect(g);
-    g.connect(master);
-    osc.start(t);
-    osc.stop(t + 0.38);
   } catch {
-    // Silently continue
+    // Non-blocking
   }
 }
 

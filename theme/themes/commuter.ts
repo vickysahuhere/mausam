@@ -25,7 +25,7 @@ export const CommuterTheme: MausamTheme = {
     glow: 'rgba(251, 191, 36, 0.25)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 12, s: 14, m: 17, l: 22, xl: 28, xxl: 38 },
   },
   spacing: { xs: 4, s: 8, m: 14, l: 20, xl: 28, xxl: 40 }, // Dense glanceable spacing

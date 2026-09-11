@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, RefreshControl, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
 import { GridRenderer } from '../../components/widgets/GridRenderer';
 import { MainWeatherHero } from '../../components/home/MainWeatherHero';
+import { HomeSkeletonLoader } from '../../components/home/HomeSkeletonLoader';
 import { WidgetLibrarySheet } from '../../components/home/WidgetLibrarySheet';
 import { ThemeSelector } from '../../components/home/ThemeSelector';
 import { RadarMapModal } from '../../components/map/RadarMapModal';
@@ -18,6 +19,7 @@ import { useLocaleStore } from '../../store/useLocaleStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useWidgetData } from '../../components/widgets/useWidgetData';
 import { getAlertsForLocation, WeatherAlert } from '../../lib/alertService';
+import { CurrentSummaryData } from '../../lib/weatherService';
 import { processSevereAlerts } from '../../lib/notificationService';
 import { companionEvents } from '../../lib/companion/companionEvents';
 import { useCompanionStore } from '../../store/useCompanionStore';
@@ -38,9 +40,27 @@ export default function Home() {
   const [libraryVisible, setLibraryVisible] = useState(false);
   const [radarVisible, setRadarVisible] = useState(false);
   const [severeAlert, setSevereAlert] = useState<WeatherAlert | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // SWR status for homepage
-  const { isStale, isOffline, refresh } = useWidgetData('current_summary');
+  // SWR status and weather data for homepage atmosphere
+  const {
+    data: weather,
+    loading,
+    error,
+    isStale,
+    isOffline,
+    cacheAgeSeconds,
+    refresh,
+  } = useWidgetData<CurrentSummaryData>('current_summary');
+
+  const derivedWeatherType = React.useMemo<'clear' | 'clouds' | 'rain' | 'storm' | 'snow'>(() => {
+    const desc = (weather?.desc || '').toLowerCase();
+    if (desc.includes('thunder') || desc.includes('storm')) return 'storm';
+    if (desc.includes('rain') || desc.includes('drizzle') || desc.includes('shower')) return 'rain';
+    if (desc.includes('snow') || desc.includes('flurry') || desc.includes('ice') || desc.includes('sleet')) return 'snow';
+    if (desc.includes('cloud') || desc.includes('overcast')) return 'clouds';
+    return 'clear';
+  }, [weather?.desc]);
 
   useEffect(() => {
     initializeForUser(personaVector);
@@ -87,6 +107,7 @@ export default function Home() {
   }, [severeAlert]);
 
   const handleManualRefresh = async () => {
+    setIsRefreshing(true);
     useCompanionStore.getState().incrementRefreshCount();
     companionEvents.emit('weather_refresh_started', undefined);
     try {
@@ -94,12 +115,14 @@ export default function Home() {
       companionEvents.emit('weather_refresh_success', {});
     } catch {
       companionEvents.emit('weather_refresh_failed', {});
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <WeatherAtmosphere>
+      <WeatherAtmosphere weatherType={derivedWeatherType}>
         {/* Clean Homepage Header with Hierarchy */}
         <View
           style={{
@@ -186,30 +209,58 @@ export default function Home() {
           </View>
         </View>
 
-        {/* Offline / Stale Status Indicator */}
+        {/* Modern Floating Offline / Cached Status Banner */}
         {!isCustomizing && (isOffline || isStale) && (
           <View
             style={{
               marginHorizontal: theme.spacing.m,
               marginTop: 4,
-              marginBottom: 6,
-              paddingVertical: 4,
-              paddingHorizontal: 10,
-              borderRadius: theme.shapes.borderRadius.s,
-              backgroundColor: theme.colors.surfaceSecondary,
+              marginBottom: 8,
+              paddingVertical: 7,
+              paddingHorizontal: 12,
+              borderRadius: 14,
+              backgroundColor: isOffline ? (theme.isDark ? '#F59E0B1A' : '#FEF3C7') : theme.colors.surfaceSecondary,
+              borderWidth: 1,
+              borderColor: isOffline ? (theme.isDark ? '#F59E0B38' : '#FDE68A') : theme.colors.border,
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1 }}>
-              <Icon name="cloud" size={13} color={theme.colors.textSecondary} />
-              <Typography variant="caption" color={theme.colors.textSecondary} numberOfLines={1} style={{ marginLeft: 6, fontWeight: '600', fontSize: 11, flexShrink: 1 }}>
-                {isOffline ? t('offlineBanner') : t('revalidatingBanner')}
+              <View
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 3.5,
+                  backgroundColor: isOffline ? '#F59E0B' : theme.colors.primary,
+                  marginRight: 8,
+                }}
+              />
+              <Typography
+                variant="caption"
+                color={isOffline ? (theme.isDark ? '#FBBF24' : '#B45309') : theme.colors.textSecondary}
+                numberOfLines={1}
+                style={{ fontWeight: '700', fontSize: 11.5, flexShrink: 1 }}
+              >
+                {isOffline
+                  ? (cacheAgeSeconds > 60
+                      ? `${t('offlineBanner')} • ${Math.round(cacheAgeSeconds / 60)}m ago`
+                      : t('offlineBanner'))
+                  : t('revalidatingBanner')}
               </Typography>
             </View>
-            <TouchableOpacity onPress={handleManualRefresh} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700', fontSize: 11 }}>
+            <TouchableOpacity
+              onPress={handleManualRefresh}
+              activeOpacity={0.7}
+              style={{
+                paddingHorizontal: 9,
+                paddingVertical: 3.5,
+                borderRadius: 8,
+                backgroundColor: theme.colors.primary + (theme.isDark ? '2A' : '15'),
+              }}
+            >
+              <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '800', fontSize: 11 }}>
                 {t('refresh')}
               </Typography>
             </TouchableOpacity>
@@ -257,64 +308,151 @@ export default function Home() {
           );
         })()}
 
-        {/* Dynamic Widget Grid with unified scrolling */}
-        <GridRenderer
-          isCustomizing={isCustomizing}
-          headerComponent={
-            <View style={{ marginBottom: 0 }}>
-              {/* The ONE Main Weather Hero */}
-              <MainWeatherHero
-                locationName={defaultLoc?.label || t('selectPrimaryLocation')}
-                onPressLocation={() => router.push('/locations')}
+        {/* Loading Skeleton State */}
+        {loading && !weather ? (
+          <ScrollView
+            style={{ flex: 1, padding: theme.spacing.m }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleManualRefresh}
+                tintColor={theme.colors.primary}
+                colors={[theme.colors.primary]}
               />
+            }
+          >
+            <HomeSkeletonLoader />
+          </ScrollView>
+        ) : error && !weather ? (
+          /* Actionable Network / Offline Error State */
+          <ScrollView
+            style={{ flex: 1, padding: theme.spacing.m }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 60 }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleManualRefresh}
+                tintColor={theme.colors.primary}
+                colors={[theme.colors.primary]}
+              />
+            }
+          >
+            <View
+              style={{
+                padding: 24,
+                borderRadius: theme.shapes.borderRadius.l ?? 20,
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                alignItems: 'center',
+              }}
+            >
+              <View
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 26,
+                  backgroundColor: theme.colors.primary + '18',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 14,
+                }}
+              >
+                <Icon name="rain" size={26} color={theme.colors.primary} />
+              </View>
+              <Typography variant="h3" style={{ fontWeight: '800', textAlign: 'center' }}>
+                {t('unableToFetchWeather')}
+              </Typography>
+              <Typography
+                variant="body"
+                color={theme.colors.textSecondary}
+                style={{ textAlign: 'center', marginTop: 8, marginBottom: 20, lineHeight: 20 }}
+              >
+                {error || t('checkNetwork')}
+              </Typography>
+              <Button
+                title={t('retryNow')}
+                onPress={handleManualRefresh}
+                style={{ width: '100%', marginBottom: 12 }}
+              />
+              <Button
+                title={t('locationsTab')}
+                variant="outline"
+                onPress={() => router.push('/locations')}
+                style={{ width: '100%' }}
+              />
+            </View>
+          </ScrollView>
+        ) : (
+          /* Dynamic Widget Grid with unified scrolling & pull-to-refresh */
+          <GridRenderer
+            isCustomizing={isCustomizing}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleManualRefresh}
+                tintColor={theme.colors.primary}
+                colors={[theme.colors.primary]}
+              />
+            }
+            headerComponent={
+              <View style={{ marginBottom: 0 }}>
+                {/* The ONE Main Weather Hero */}
+                <MainWeatherHero
+                  locationName={defaultLoc?.label || t('selectPrimaryLocation')}
+                  onPressLocation={() => router.push('/locations')}
+                />
 
-              {/* Theme Picker and Add Widget drawer in Customization Mode */}
-              {isCustomizing && (
-                <View
-                  style={{
-                    marginBottom: 12,
-                    padding: theme.spacing.m,
-                    backgroundColor: theme.colors.surface,
-                    borderRadius: theme.shapes.borderRadius.m,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                  }}
-                >
-                  <ThemeSelector />
-                  <Button
-                    title={t('addWidgetFromLibrary')}
-                    variant="outline"
-                    onPress={() => setLibraryVisible(true)}
-                  />
+                {/* Theme Picker and Add Widget drawer in Customization Mode */}
+                {isCustomizing && (
                   <View
                     style={{
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginTop: 12,
-                      paddingTop: 8,
-                      borderTopWidth: 1,
-                      borderTopColor: theme.colors.border,
+                      marginBottom: 12,
+                      padding: theme.spacing.m,
+                      backgroundColor: theme.colors.surface,
+                      borderRadius: theme.shapes.borderRadius.m,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      color={theme.colors.textSecondary}
-                      style={{ fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}
+                    <ThemeSelector />
+                    <Button
+                      title={t('addWidgetFromLibrary')}
+                      variant="outline"
+                      onPress={() => setLibraryVisible(true)}
+                    />
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 12,
+                        paddingTop: 8,
+                        borderTopWidth: 1,
+                        borderTopColor: theme.colors.border,
+                      }}
                     >
-                      {t('customizableWidgets')}
-                    </Typography>
-                    <TouchableOpacity onPress={() => setLibraryVisible(true)}>
-                      <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
-                        {t('addMore')}
+                      <Typography
+                        variant="caption"
+                        color={theme.colors.textSecondary}
+                        style={{ fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}
+                      >
+                        {t('customizableWidgets')}
                       </Typography>
-                    </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setLibraryVisible(true)}>
+                        <Typography variant="caption" color={theme.colors.primary} style={{ fontWeight: '700' }}>
+                          {t('addMore')}
+                        </Typography>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              )}
-            </View>
-          }
-        />
+                )}
+              </View>
+            }
+          />
+        )}
 
         {/* Full Widget Library Modal */}
         <WidgetLibrarySheet visible={libraryVisible} onClose={() => setLibraryVisible(false)} />

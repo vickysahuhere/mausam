@@ -25,7 +25,7 @@ export const ParentTheme: MausamTheme = {
     glow: 'rgba(2, 132, 199, 0.15)',
   },
   typography: {
-    fontFamily: { regular: 'System', bold: 'System' },
+    fontFamily: { regular: 'KinderChildKawaiiBubble', bold: 'KinderChildKawaiiBubble' },
     sizes: { xs: 13, s: 15, m: 18, l: 24, xl: 32, xxl: 44 }, // Extra-large legible fonts
   },
   spacing: { xs: 6, s: 12, m: 20, l: 28, xl: 40, xxl: 56 }, // Large forgiving tap areas

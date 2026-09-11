@@ -60,6 +60,9 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     comfort_index: 'Thermal Comfort Index',
     secondary_locations: 'Secondary Locations',
     companion_card: 'Weather Companion (Mimi)',
+    wind_compass: 'Wind Compass & Gust Rose',
+    barometer_pressure: 'Barometer & Storm Trend',
+    moon_phase: 'Moon Phase & Night Sky',
 
     // Alerts Screen
     alertsHeader: 'Severe Weather Alerts',
@@ -201,6 +204,9 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     comfort_index: 'थर्मल आराम सूचकांक',
     secondary_locations: 'द्वितीयक स्थान मौसम',
     companion_card: 'मौसम साथी (मीमी)',
+    wind_compass: 'हवा की दिशा और गति',
+    barometer_pressure: 'वायुदाब और आंधी सूचक',
+    moon_phase: 'चंद्र कला और रात्रि आकाश',
 
     // Alerts Screen
     alertsHeader: 'गंभीर मौसम चेतावनियाँ',
@@ -342,6 +348,9 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     comfort_index: 'उष्णता आराम निर्देशांक',
     secondary_locations: 'दुय्यम ठिकाणे हवामान',
     companion_card: 'हवामान साथी (मीमी)',
+    wind_compass: 'वाऱ्याची दिशा आणि वेग',
+    barometer_pressure: 'वातावरणीय दाब व वादळ अंदाज',
+    moon_phase: 'चंद्र कला आणि रात्र आकाश',
 
     // Alerts Screen
     alertsHeader: 'गंभीर हवामान इशारे',
@@ -483,6 +492,9 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     comfort_index: 'வெப்ப சௌகரிய குறியீடு',
     secondary_locations: 'இரண்டாம் நிலை இடங்கள்',
     companion_card: 'வானிலை துணை (மிமி)',
+    wind_compass: 'காற்று திசை மற்றும் வேகம்',
+    barometer_pressure: 'வளிமண்டல அழுத்த மானி',
+    moon_phase: 'சந்திர நிலை மற்றும் இரவு வானம்',
 
     // Alerts Screen
     alertsHeader: 'வானிலை எச்சரிக்கைகள்',
@@ -624,6 +636,9 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     comfort_index: 'তাপীয় আরাম সূচক',
     secondary_locations: 'মাধ্যমিক স্থানসমূহ',
     companion_card: 'আবহাওয়া সঙ্গী (মিমি)',
+    wind_compass: 'বাতাসের দিক ও কম্পাস',
+    barometer_pressure: 'বায়ুচাপ ও ঝড়ের পূর্বাভাস',
+    moon_phase: 'চাঁদের কলা ও রাতের আকাশ',
 
     // Alerts Screen
     alertsHeader: 'আবহাওয়া সতর্কতা',
@@ -765,6 +780,9 @@ export const TRANSLATIONS: Record<SupportedLocale, Record<string, string>> = {
     comfort_index: 'సౌకర్య సూచిక',
     secondary_locations: 'ద్వితీయ ప్రాంతాలు',
     companion_card: 'వాతావరణ సహచరుడు (మిమి)',
+    wind_compass: 'గాలి దిక్సూచి మరియు వేగం',
+    barometer_pressure: 'వాతావరణ పీడన మాపకం',
+    moon_phase: 'చంద్ర దశ మరియు రాత్రి ఆకాశం',
 
     // Alerts Screen
     alertsHeader: 'వాతావరణ హెచ్చరికలు',
