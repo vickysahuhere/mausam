@@ -6,7 +6,7 @@ Mausam is a modern, personalized weather application built with React Native and
 
 ## 🌟 Key Features
 
-### 1. 🐾 Mimi — The Living Weather Companion (मौसम साथी)
+### 1. 🐾 Mimi — The Living Weather Companion 
 * **Context-Aware Mascot**: Mimi is not a chatbot or static icon. Mimi lives inside the weather hero, reacting through 100% vector SVG animations, eye gaze tracking, and expressive postures.
 * **5-Level Priority & Preemption Engine**: Preempts lower-level animations when critical events occur (Level 5: Severe storm alerts, Level 4: Weather transitions, Level 3: Touch interactions, Level 2: Contextual scrolling, Level 1: Ambient idle routines).
 * **Gaze Direction Tracking**: Mimi's pupils dynamically look toward the temperature card (`left`), weather condition chips (`right`), incoming rain clouds (`up`), and scrolling forecast widgets (`down`).
