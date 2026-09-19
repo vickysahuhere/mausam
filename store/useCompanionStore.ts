@@ -1,3 +1,4 @@
+import { CatBehaviorDirector } from '../lib/cat/catBehaviorDirector';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -25,7 +26,7 @@ import { haptics } from '../lib/haptics';
 const STORAGE_KEY = '@mausam_companion_storage_v1';
 const SOUND_STORAGE_KEY = '@mausam_cat_sound_enabled';
 const REACTIONS_STORAGE_KEY = '@mausam_cat_reactions_enabled';
-let activeTimerId: any = null;
+let engineInterval: any = null;
 
 let debouncePersistTimeout: any = null;
 function schedulePersistCompanion(data: {
@@ -80,6 +81,12 @@ interface CompanionStoreState {
   inactivityTier: number;
   wakeStep: number;
   isWaking: boolean;
+  activeBehaviorId: string | null;
+  activeLookAt: GazeTarget;
+  
+  // Ambient Context Memory
+  ambientContext: { temp?: number; isRain?: boolean; isThunder?: boolean };
+  reactionCooldowns: Record<string, number>;
 
   // Actions
   initialize: () => Promise<void>;
@@ -117,6 +124,9 @@ interface CompanionStoreState {
   syncWithAmbientWeather: (temp?: number, isRain?: boolean, isThunder?: boolean) => void;
   surfaceWeatherGuidance: (ctx: WeatherContextData) => void;
   resetAll: () => Promise<void>;
+  startEngine: () => void;
+  stopEngine: () => void;
+  checkEnvironmentalBehaviors: () => void;
 }
 
 export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
@@ -144,6 +154,10 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   inactivityTier: 1,
   wakeStep: 0,
   isWaking: false,
+  activeBehaviorId: null,
+  activeLookAt: 'user',
+  ambientContext: {},
+  reactionCooldowns: {},
 
   initialize: async () => {
     if (get().isInitialized) return;
@@ -317,30 +331,9 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
       catActivity: (params.catActivity ?? get().catActivity),
     });
 
-    // Auto-revert to resting state after duration finishes
-    if (params.durationMs > 0) {
-      if (activeTimerId) {
-        clearTimeout(activeTimerId);
-      }
-      activeTimerId = setTimeout(() => {
-        const stateNow = get().currentState;
-        if (stateNow.timestamp === nextState.timestamp) {
-          set({
-            currentState: {
-              ...stateNow,
-              expression: 'neutral',
-              pose: 'perch',
-              gazeTarget: 'user',
-              speechText: null,
-              durationMs: 0,
-              priority: 'AMBIENT',
-              priorityScore: 10,
-            },
-            catActivity: 'resting',
-          });
-        }
-      }, params.durationMs);
-    }
+    // We no longer use scattered setTimeouts. 
+    // The centralized engine (startEngine) will automatically revert the state 
+    // when (Date.now() - timestamp > durationMs).
 
     return true;
   },
@@ -603,33 +596,48 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
     haptics.impactLight();
 
     if (tapCount === 1) {
+      // Signature Wave with varied expression and gaze
+      const tapVariations = [
+        { expression: 'happy', pose: 'wave', gazeTarget: 'user', durationMs: 1600 },
+        { expression: 'blissful', pose: 'wave', gazeTarget: 'user', durationMs: 1700 },
+        { expression: 'curious', pose: 'wave', gazeTarget: 'up', durationMs: 1600 },
+      ] as const;
+      const pick = tapVariations[Math.floor(Math.random() * tapVariations.length)];
+
       get().triggerReaction({
         mood: 'curious',
         catMood: 'happy',
         catActivity: 'resting',
-        expression: 'happy',
-        pose: 'wave',
-        gazeTarget: 'user',
+        expression: pick.expression,
+        pose: pick.pose,
+        gazeTarget: pick.gazeTarget,
         speechText: null,
         priority: 'INTERACTION',
         priorityScore: 66,
-        durationMs: 1600,
+        durationMs: pick.durationMs,
       });
       return;
     }
 
-    // 2 taps: cheerful greeting
+    // 2 taps: attentive sit greeting with variety
+    const tap2Variations = [
+      { expression: 'happy', pose: 'sit', gazeTarget: 'user', durationMs: 1800 },
+      { expression: 'blissful', pose: 'sit', gazeTarget: 'user', durationMs: 1900 },
+      { expression: 'curious', pose: 'sit', gazeTarget: 'left', durationMs: 1700 },
+    ] as const;
+    const pick2 = tap2Variations[Math.floor(Math.random() * tap2Variations.length)];
+
     get().triggerReaction({
       mood: 'happy',
       catMood: 'happy',
       catActivity: 'resting',
-      expression: 'happy',
-      pose: 'sit',
-      gazeTarget: 'user',
+      expression: pick2.expression,
+      pose: pick2.pose,
+      gazeTarget: pick2.gazeTarget,
       speechText: null,
       priority: 'INTERACTION',
       priorityScore: 68,
-      durationMs: 1800,
+      durationMs: pick2.durationMs,
     });
   },
 
@@ -692,10 +700,6 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   },
 
   skipReaction: () => {
-    if (activeTimerId) {
-      clearTimeout(activeTimerId);
-      activeTimerId = null;
-    }
     catSoundManager.stopCurrentSound();
     const stateNow = get().currentState;
     set({
@@ -781,11 +785,152 @@ export const useCompanionStore = create<CompanionStoreState>((set, get) => ({
   },
 
   syncWithAmbientWeather: (temp, isRain, isThunder) => {
+    set({ ambientContext: { temp, isRain, isThunder } });
     const { currentState } = get();
     if (currentState.priorityScore >= 50) return;
 
     const resting = getDefaultRestingState(temp, isRain, isThunder);
     set({ currentState: resting });
+  },
+
+
+  startEngine: () => {
+    if (engineInterval) return;
+    
+    let tickCounter = 0;
+    
+    engineInterval = setInterval(() => {
+      const state = get();
+      const now = Date.now();
+      tickCounter++;
+      
+      // 1. Process Active Reactions (Revert if duration expired)
+      if (state.currentState.durationMs > 0 && now - state.currentState.timestamp > state.currentState.durationMs) {
+        // Revert to resting state
+        const resting = getDefaultRestingState(
+          state.ambientContext.temp,
+          state.ambientContext.isRain,
+          state.ambientContext.isThunder
+        );
+        set({
+          currentState: resting,
+          catActivity: 'resting',
+          isWaking: false,
+        });
+      }
+      
+      // 2. Clear Speech Bubble if active and time elapsed (3200ms)
+      if (state.currentState.speechText && state.currentState.speechKey) {
+        const speechAge = now - parseInt(state.currentState.speechKey, 10);
+        if (speechAge > 3200 && isNaN(speechAge) === false) {
+          get().dismissSpeech();
+        }
+      }
+      
+      // 3. Process Inactivity (every 1s)
+      get().incrementInactivity(1);
+      
+      // 4. Autonomous Character Director Evaluation (Layer 2 & 3 with Anti-Repetition & Quiet Periods)
+      if (tickCounter % 2 === 0) {
+        const env = {
+          temp: state.ambientContext.temp,
+          isRain: state.ambientContext.isRain,
+          isThunder: state.ambientContext.isThunder,
+          hour: new Date().getHours(),
+          inactivitySeconds: state.inactivitySeconds,
+          currentMood: state.catMood,
+          isSleeping: state.currentState.expression === 'sleeping' || state.inactivityTier >= 5,
+        };
+
+        const nextAction = CatBehaviorDirector.selectNextBehavior(env, state.currentState.priorityScore);
+        if (nextAction && state.reactionsEnabled && !state.isWaking) {
+          set({ activeBehaviorId: nextAction.id });
+          
+          if (nextAction.sound && state.soundEnabled) {
+            catSoundManager.play(nextAction.sound, { priority: CatAudioPriority.NORMAL, reason: nextAction.id });
+          }
+
+          get().triggerReaction({
+            expression: nextAction.expression,
+            pose: nextAction.pose,
+            accessory: nextAction.accessory ?? 'none',
+            gazeTarget: nextAction.gazeTarget ?? 'user',
+            priority: nextAction.priority,
+            priorityScore: nextAction.priorityScore,
+            durationMs: nextAction.durationMs,
+          });
+        }
+      }
+      
+    }, 1000);
+  },
+  
+  stopEngine: () => {
+    if (engineInterval) {
+      clearInterval(engineInterval);
+      engineInterval = null;
+    }
+  },
+  
+  checkEnvironmentalBehaviors: () => {
+    const { ambientContext, reactionCooldowns, currentState, isWaking, reactionsEnabled } = get();
+    if (isWaking || !reactionsEnabled || currentState.priorityScore >= 45) return;
+    
+    const now = Date.now();
+    
+    // Rain Check (Umbrella)
+    if (ambientContext.isRain && (!reactionCooldowns.rainCheck || now - reactionCooldowns.rainCheck > 45000)) {
+      set({ reactionCooldowns: { ...reactionCooldowns, rainCheck: now } });
+      get().triggerReaction({
+        mood: 'protective',
+        catMood: 'rainy',
+        catActivity: 'seeking_shelter',
+        expression: 'neutral',
+        pose: 'umbrella_hold',
+        accessory: 'umbrella',
+        gazeTarget: 'up',
+        priority: 'CONTEXTUAL',
+        priorityScore: 45,
+        durationMs: 7000,
+      });
+      return;
+    }
+    
+    // Cold Check (Scarf)
+    if (ambientContext.temp !== undefined && ambientContext.temp <= 10 && (!reactionCooldowns.coldCheck || now - reactionCooldowns.coldCheck > 55000)) {
+      set({ reactionCooldowns: { ...reactionCooldowns, coldCheck: now } });
+      get().triggerReaction({
+        mood: 'chilly',
+        catMood: 'cold',
+        catActivity: 'shivering',
+        expression: 'surprised',
+        pose: 'sit',
+        accessory: 'scarf',
+        gazeTarget: 'user',
+        priority: 'CONTEXTUAL',
+        priorityScore: 45,
+        durationMs: 6000,
+      });
+      return;
+    }
+    
+    // Hot Check (Fan)
+    if (ambientContext.temp !== undefined && ambientContext.temp >= 35 && (!reactionCooldowns.hotCheck || now - reactionCooldowns.hotCheck > 55000)) {
+      set({ reactionCooldowns: { ...reactionCooldowns, hotCheck: now } });
+      get().triggerReaction({
+        mood: 'warm',
+        catMood: 'hot',
+        catActivity: 'panting',
+        expression: 'sleepy',
+        pose: 'sit',
+        accessory: 'fan',
+        gazeTarget: 'user',
+        priority: 'CONTEXTUAL',
+        priorityScore: 45,
+        durationMs: 6000,
+      });
+      return;
+    }
   },
 
   resetAll: async () => {

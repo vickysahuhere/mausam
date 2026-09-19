@@ -54,20 +54,22 @@ test('Companion Brain: Weather-informed resting states', () => {
   assert.equal(storm.mood, 'startled');
   assert.equal(storm.pose, 'duck_hide');
 
-  // Rain triggers umbrella hold
+  // Rain resting state (no permanent props forever)
   const rain = getDefaultRestingState(22, true, false, 14);
   assert.equal(rain.mood, 'protective');
-  assert.equal(rain.accessory, 'umbrella');
+  assert.equal(rain.pose, 'sit');
+  assert.equal(rain.accessory, 'none');
 
-  // Cold (< 10°C) triggers scarf
+  // Cold (< 10°C) curl resting state
   const cold = getDefaultRestingState(8, false, false, 14);
   assert.equal(cold.mood, 'chilly');
-  assert.equal(cold.accessory, 'scarf');
+  assert.equal(cold.pose, 'curl_sleep');
+  assert.equal(cold.accessory, 'none');
 
-  // Extreme heat (>= 35°C) triggers fan
+  // Extreme heat (>= 35°C) warm resting state
   const hot = getDefaultRestingState(38, false, false, 14);
   assert.equal(hot.mood, 'warm');
-  assert.equal(hot.accessory, 'fan');
+  assert.equal(hot.accessory, 'none');
 });
 
 test('Companion Brain: Priority scoring and override rules', () => {
@@ -469,4 +471,76 @@ test('Cat Interaction: Single tap, consecutive tap combo easter egg & cuddle', (
   assert.equal(useCompanionStore.getState().currentState.pose, 'perch');
   assert.equal(useCompanionStore.getState().currentState.speechText, null);
 });
+
+test('Cat Behavior Registry: Metadata integrity, layer classification & weight validation', () => {
+  const { CAT_BEHAVIOR_CATALOGUE, RARITY_WEIGHTS } = require('../lib/cat/catBehaviorRegistry');
+
+  assert.ok(CAT_BEHAVIOR_CATALOGUE);
+  const keys = Object.keys(CAT_BEHAVIOR_CATALOGUE);
+  assert.ok(keys.length >= 10, 'Catalogue must define comprehensive behaviors');
+
+  for (const key of keys) {
+    const b = CAT_BEHAVIOR_CATALOGUE[key];
+    assert.ok(b.id, `Behavior ${key} must have an ID`);
+    assert.ok(b.name, `Behavior ${key} must have a name`);
+    assert.ok([1, 2, 3].includes(b.layer), `Behavior ${key} must belong to Layer 1, 2, or 3`);
+    assert.ok(b.durationMs > 0, `Behavior ${key} duration must be positive`);
+    assert.ok(b.cooldownMs > 0, `Behavior ${key} cooldown must be positive`);
+    assert.ok(typeof b.interruptible === 'boolean', `Behavior ${key} must specify interruptibility`);
+    assert.ok(b.rarityWeight > 0, `Behavior ${key} rarity weight must be positive`);
+    assert.ok(b.expression, `Behavior ${key} must define an expression`);
+    assert.ok(b.pose, `Behavior ${key} must define a pose`);
+  }
+
+  assert.ok(RARITY_WEIGHTS.common > RARITY_WEIGHTS.uncommon);
+  assert.ok(RARITY_WEIGHTS.uncommon > RARITY_WEIGHTS.rare);
+  assert.ok(RARITY_WEIGHTS.rare > RARITY_WEIGHTS.very_rare);
+});
+
+test('Cat Behavior Director: Anti-repetition ring buffer, quiet period enforcement & interruption safety', () => {
+  const { CatBehaviorDirector } = require('../lib/cat/catBehaviorDirector');
+
+  CatBehaviorDirector.reset();
+
+  const mockEnv = {
+    temp: 22,
+    isRain: false,
+    isThunder: false,
+    hour: 14,
+    inactivitySeconds: 20,
+    currentMood: 'relaxed' as const,
+    isSleeping: false,
+  };
+
+  // 1. Initial selection succeeds
+  const first = CatBehaviorDirector.selectNextBehavior(mockEnv, 0);
+  assert.ok(first, 'First behavior selection should succeed');
+  assert.ok(CatBehaviorDirector.getHistory().includes(first!.id));
+
+  // 2. Immediately following call must return null due to Quiet Period enforcement!
+  const quietCheck = CatBehaviorDirector.selectNextBehavior(mockEnv, 0);
+  assert.strictEqual(quietCheck, null, 'Director must enforce quiet breathing period immediately after a behavior');
+
+  // 3. Busy check: Director will not interrupt ongoing action score > 20
+  CatBehaviorDirector.reset();
+  const busyCheck = CatBehaviorDirector.selectNextBehavior(mockEnv, 45);
+  assert.strictEqual(busyCheck, null, 'Director must not interrupt high priority ongoing action');
+
+  // 4. Weather priority: Rain triggers umbrella check
+  CatBehaviorDirector.reset();
+  const rainEnv = { ...mockEnv, isRain: true };
+  const rainAction = CatBehaviorDirector.selectNextBehavior(rainEnv, 0);
+  assert.ok(rainAction);
+  assert.equal(rainAction!.id, 'RAIN_UMBRELLA_CHECK');
+  assert.equal(rainAction!.accessory, 'umbrella');
+
+  // 5. Weather priority: Storm triggers shelter duck
+  CatBehaviorDirector.reset();
+  const stormEnv = { ...mockEnv, isThunder: true };
+  const stormAction = CatBehaviorDirector.selectNextBehavior(stormEnv, 0);
+  assert.ok(stormAction);
+  assert.equal(stormAction!.id, 'STORM_SHELTER_HIDE');
+  assert.equal(stormAction!.pose, 'duck_hide');
+});
+
 

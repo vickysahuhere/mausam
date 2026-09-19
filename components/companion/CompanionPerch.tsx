@@ -35,7 +35,7 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
   const heartAnim = useRef(new Animated.Value(0)).current;
   const heartOpacity = useRef(new Animated.Value(0)).current;
 
-  // Initialize store and subscribe to idle & inactivity timers with AppState awareness
+  // Initialize store and subscribe to engine lifecycle with AppState awareness
   useEffect(() => {
     useCompanionStore.getState().initialize();
 
@@ -43,28 +43,12 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
       return;
     }
 
-    let idleInterval: ReturnType<typeof setInterval> | null = null;
-    let inactivityInterval: ReturnType<typeof setInterval> | null = null;
-
     const startTimers = () => {
-      if (idleInterval) clearInterval(idleInterval);
-      if (inactivityInterval) clearInterval(inactivityInterval);
-
-      idleInterval = setInterval(() => {
-        useCompanionStore.getState().tickIdle();
-      }, 14000);
-
-      // 3-second interval (reduced from 1s) to eliminate unnecessary CPU wakeups
-      inactivityInterval = setInterval(() => {
-        useCompanionStore.getState().incrementInactivity(3);
-      }, 3000);
+      useCompanionStore.getState().startEngine();
     };
 
     const stopTimers = () => {
-      if (idleInterval) clearInterval(idleInterval);
-      if (inactivityInterval) clearInterval(inactivityInterval);
-      idleInterval = null;
-      inactivityInterval = null;
+      useCompanionStore.getState().stopEngine();
     };
 
     if (AppState.currentState === 'active') {
@@ -99,11 +83,6 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
           useNativeDriver: true,
         }).start();
       }
-
-      const timer = setTimeout(() => {
-        dismissSpeech();
-      }, 3200);
-      return () => clearTimeout(timer);
     } else {
       speechAnim.setValue(0);
     }
@@ -251,6 +230,10 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
             >
               {currentState.pose === 'bongo_tap'
                 ? '🥁 Bongo Cat Groove'
+                : currentState.pose === 'stretch_yawn'
+                ? '🧘 Having a pleasant stretch'
+                : currentState.pose === 'duck_hide'
+                ? '⚡ Listening to the storm'
                 : currentState.expression === 'sleeping'
                 ? '💤 Taking a cozy catnap'
                 : currentState.pose === 'sit'
@@ -259,6 +242,10 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
                 ? '👋 Mimi waves hello!'
                 : currentState.accessory === 'umbrella'
                 ? '☔ Watching the rain'
+                : currentState.accessory === 'scarf'
+                ? '🧣 Keeping warm and cozy'
+                : currentState.accessory === 'fan'
+                ? '🪭 Enjoying a cool breeze'
                 : currentState.accessory === 'sunglasses'
                 ? '🕶️ Cool in the shade'
                 : '🐾 Tap Mimi to chat'}

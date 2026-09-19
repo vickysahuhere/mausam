@@ -741,9 +741,9 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
     ? solar.daylightProgressPercent / 100
     : Math.max(0.1, Math.min(0.9, moon.phaseValue));
 
-  // Parametric parabolic coordinates for 240x84 viewBox
+  // Parametric parabolic coordinates for 240x86 viewBox with safe headroom
   const nodeX = 15 + Math.max(0, Math.min(1, progressRatio)) * 210;
-  const nodeY = 66 - 54 * Math.sin(Math.PI * Math.max(0, Math.min(1, progressRatio)));
+  const nodeY = 66 - 50 * Math.sin(Math.PI * Math.max(0, Math.min(1, progressRatio)));
 
   const badgeText = isDay
     ? (solar.isGoldenHour ? '✨ Golden Hour' : `${solar.daylightProgressPercent}% Daylight`)
@@ -769,9 +769,33 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
               : `Moon track: ${moon.phaseName}, ${moon.illuminationPercent} percent illuminated. Next sunrise at ${data.sunrise}.`
           }
         >
+          {/* Status Pill (Cleanly placed above the celestial arc so the sun and text never collide) */}
+          <View style={{ alignItems: 'center', width: '100%', marginBottom: 8, marginTop: 2 }}>
+            <View
+              style={{
+                backgroundColor: (isDay ? theme.colors.warning : theme.colors.primary) + (theme.isDark ? '25' : '15'),
+                paddingHorizontal: 12,
+                paddingVertical: 3.5,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: (isDay ? theme.colors.warning : theme.colors.primary) + '40',
+              }}
+            >
+              <Typography
+                variant="caption"
+                color={isDay ? theme.colors.warning : theme.colors.primary}
+                style={{ fontWeight: '700', fontSize: 10.5 }}
+              >
+                {isDay
+                  ? (solar.isGoldenHour ? '✨ Golden Hour Light' : `☀️ ${Math.floor(solar.daylightMinutes / 60)}h ${solar.daylightMinutes % 60}m Total Daylight`)
+                  : `${moon.emoji} ${moon.phaseName} • ${moon.illuminationPercent}% Lit`}
+              </Typography>
+            </View>
+          </View>
+
           {/* Celestial Horizon & Glowing Solar/Lunar Dome */}
-          <View style={{ alignItems: 'center', width: '100%', position: 'relative', marginTop: 2, marginBottom: 4 }}>
-            <Svg width="100%" height="84" viewBox="0 0 240 84">
+          <View style={{ alignItems: 'center', width: '100%', position: 'relative', marginBottom: 4 }}>
+            <Svg width="100%" height="86" viewBox="0 0 240 86">
               <Defs>
                 <SvgLinearGradient id="celestialDomeFill" x1="0%" y1="0%" x2="0%" y2="100%">
                   <SvgStop
@@ -807,7 +831,7 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
 
               {/* Glowing Ambient Celestial Dome */}
               <Path
-                d="M 15 66 Q 120 12 225 66 L 225 66 L 15 66 Z"
+                d="M 15 66 Q 120 16 225 66 L 225 66 L 15 66 Z"
                 fill="url(#celestialDomeFill)"
               />
 
@@ -824,7 +848,7 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
 
               {/* Parabolic Celestial Curve */}
               <Path
-                d="M 15 66 Q 120 12 225 66"
+                d="M 15 66 Q 120 16 225 66"
                 fill="none"
                 stroke="url(#celestialArcGrad)"
                 strokeWidth="3"
@@ -854,30 +878,6 @@ export function SunriseSunsetWidget({ id, isCustomizing, onRemove }: WidgetProps
                 </>
               )}
             </Svg>
-
-            {/* In-Dome Status Pill */}
-            <View style={{ position: 'absolute', top: 4, alignItems: 'center', width: '100%' }}>
-              <View
-                style={{
-                  backgroundColor: (isDay ? theme.colors.warning : theme.colors.primary) + (theme.isDark ? '25' : '15'),
-                  paddingHorizontal: 10,
-                  paddingVertical: 3,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: (isDay ? theme.colors.warning : theme.colors.primary) + '40',
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  color={isDay ? theme.colors.warning : theme.colors.primary}
-                  style={{ fontWeight: '700', fontSize: 10.5 }}
-                >
-                  {isDay
-                    ? (solar.isGoldenHour ? '✨ Golden Hour Light' : `☀️ ${Math.floor(solar.daylightMinutes / 60)}h ${solar.daylightMinutes % 60}m Total Daylight`)
-                    : `${moon.emoji} ${moon.phaseName} • ${moon.illuminationPercent}% Lit`}
-                </Typography>
-              </View>
-            </View>
           </View>
 
           {/* 3-Column Structured Telemetry Deck */}

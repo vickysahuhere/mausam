@@ -141,7 +141,7 @@ export function getDefaultRestingState(
     };
   }
 
-  // Weather-influenced default
+  // Weather-influenced physical resting states (no permanent props)
   if (isThunder) {
     return {
       mood: 'startled',
@@ -162,8 +162,8 @@ export function getDefaultRestingState(
     return {
       mood: 'protective',
       expression: 'neutral',
-      pose: 'umbrella_hold',
-      accessory: 'umbrella',
+      pose: 'sit',
+      accessory: 'none',
       gazeTarget: 'up',
       speechText: null,
       speechKey: null,
@@ -178,8 +178,8 @@ export function getDefaultRestingState(
     return {
       mood: 'chilly',
       expression: 'neutral',
-      pose: 'sit',
-      accessory: 'scarf',
+      pose: 'curl_sleep',
+      accessory: 'none',
       gazeTarget: 'user',
       speechText: null,
       speechKey: null,
@@ -195,7 +195,7 @@ export function getDefaultRestingState(
       mood: 'warm',
       expression: 'sleepy',
       pose: 'sit',
-      accessory: 'fan',
+      accessory: 'none',
       gazeTarget: 'user',
       speechText: null,
       speechKey: null,

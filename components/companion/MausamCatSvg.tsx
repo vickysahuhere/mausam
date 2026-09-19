@@ -60,6 +60,44 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
   const bongoNoteY2 = useRef(new Animated.Value(0)).current;
   const bongoNoteOpacity = useRef(new Animated.Value(0)).current;
 
+  // Layer 1 Micro-Life & Organic Weight Shifting
+  const bodyShiftX = useRef(new Animated.Value(0)).current;
+  const bodySettleY = useRef(new Animated.Value(0)).current;
+  const gazeAnimX = useRef(new Animated.Value(0)).current;
+  const gazeAnimY = useRef(new Animated.Value(0)).current;
+  const umbrellaSway = useRef(new Animated.Value(0)).current;
+
+  // Prop Lifecycle State
+  const [renderedAccessory, setRenderedAccessory] = useState(accessory);
+  const accessoryAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (accessory !== renderedAccessory) {
+      if (!animationsEnabled) {
+        setRenderedAccessory(accessory);
+        accessoryAnim.setValue(1);
+        return;
+      }
+      
+      // Anticipation & Exit
+      Animated.sequence([
+        // Slight anticipation tilt
+        Animated.timing(headTilt, { toValue: -5, duration: 150, useNativeDriver: true }),
+        // Scale down old prop
+        Animated.timing(accessoryAnim, { toValue: 0, duration: 250, useNativeDriver: true })
+      ]).start(() => {
+        setRenderedAccessory(accessory);
+        // Scale up new prop
+        Animated.spring(accessoryAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 80,
+          useNativeDriver: true
+        }).start();
+      });
+    }
+  }, [accessory, renderedAccessory, animationsEnabled, accessoryAnim, headTilt]);
+
   // Natural living eye blinking state
   const [isBlinking, setIsBlinking] = useState(false);
 
@@ -85,7 +123,7 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
   const shadowStyle = themeStyle?.shadowStyle ?? 'glass_ambient';
   const motionFactor = animationsEnabled ? (themeStyle?.motionIntensity ?? 1.0) : 0;
 
-  // Gaze pupil offsets & head tilt
+  // Gaze pupil offsets & head tilt with smooth parametric easing
   let eyeDx = 0;
   let eyeDy = 0;
   let targetTilt = 0;
@@ -93,34 +131,140 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
   if (gazeTarget === 'left') {
     eyeDx = -2.8;
     eyeDy = 0;
-    targetTilt = -3;
+    targetTilt = -3.5;
   } else if (gazeTarget === 'right') {
     eyeDx = 2.8;
     eyeDy = 0;
-    targetTilt = 3;
+    targetTilt = 3.5;
   } else if (gazeTarget === 'up') {
     eyeDx = 0;
-    eyeDy = -2.5;
-    targetTilt = 0;
+    eyeDy = -2.6;
+    targetTilt = -1.5;
   } else if (gazeTarget === 'down') {
     eyeDx = 0;
-    eyeDy = 2.5;
-    targetTilt = 0;
+    eyeDy = 2.6;
+    targetTilt = 1.5;
   }
 
-  // 1. Natural slow eye-blinking timer (every 3.8s)
+  useEffect(() => {
+    if (!animationsEnabled) {
+      gazeAnimX.setValue(eyeDx);
+      gazeAnimY.setValue(eyeDy);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(gazeAnimX, { toValue: eyeDx, duration: 220, useNativeDriver: true }),
+      Animated.timing(gazeAnimY, { toValue: eyeDy, duration: 220, useNativeDriver: true }),
+    ]).start();
+  }, [eyeDx, eyeDy, gazeAnimX, gazeAnimY, animationsEnabled]);
+
+  // 1. Natural Multi-Mode Blinking Engine (Single, Double, Sleepy-Slow, Wake)
   useEffect(() => {
     if (!animationsEnabled || !isAppActive || expression === 'sleeping') {
       setIsBlinking(false);
       return;
     }
-    const blinkTimer = setInterval(() => {
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 160);
-    }, 3800);
 
-    return () => clearInterval(blinkTimer);
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let isCancelled = false;
+
+    const scheduleNextBlink = () => {
+      if (isCancelled) return;
+
+      // Base interval modulated by emotional state
+      let delay = Math.floor(3200 + Math.random() * 3600); // 3.2s - 6.8s
+      if (expression === 'sleepy') {
+        delay = Math.floor(2200 + Math.random() * 2400); // More frequent when sleepy
+      } else if (expression === 'happy' || expression === 'surprised') {
+        delay = Math.floor(4500 + Math.random() * 3500); // Rarer when excited
+      }
+
+      timerId = setTimeout(() => {
+        if (isCancelled) return;
+
+        const roll = Math.random();
+
+        if (expression === 'sleepy' || roll < 0.15) {
+          // Mode A: Sleepy Slow Blink (soft extended closure)
+          setIsBlinking(true);
+          setTimeout(() => {
+            if (!isCancelled) setIsBlinking(false);
+            scheduleNextBlink();
+          }, 280);
+        } else if (roll < 0.35) {
+          // Mode B: Double Blink (natural kitten flutter)
+          setIsBlinking(true);
+          setTimeout(() => {
+            if (isCancelled) return;
+            setIsBlinking(false);
+            setTimeout(() => {
+              if (isCancelled) return;
+              setIsBlinking(true);
+              setTimeout(() => {
+                if (!isCancelled) setIsBlinking(false);
+                scheduleNextBlink();
+              }, 120);
+            }, 80);
+          }, 110);
+        } else {
+          // Mode C: Standard Natural Blink
+          setIsBlinking(true);
+          setTimeout(() => {
+            if (!isCancelled) setIsBlinking(false);
+            scheduleNextBlink();
+          }, 140);
+        }
+      }, delay);
+    };
+
+    scheduleNextBlink();
+
+    return () => {
+      isCancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
   }, [animationsEnabled, isAppActive, expression]);
+
+
+  // 1B. Layer 1 Subtle Weight Shifting & Posture Settling (Every 16-24s)
+  useEffect(() => {
+    if (!animationsEnabled || motionFactor === 0 || !isAppActive || pose === 'curl_sleep') {
+      bodyShiftX.setValue(0);
+      bodySettleY.setValue(0);
+      return;
+    }
+
+    let isCancelled = false;
+    let shiftTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleWeightShift = () => {
+      const delay = Math.floor(16000 + Math.random() * 8000); // 16s - 24s
+      shiftTimeout = setTimeout(() => {
+        if (isCancelled) return;
+
+        const direction = Math.random() > 0.5 ? 1.4 : -1.4;
+        Animated.sequence([
+          // Subtle lean
+          Animated.timing(bodyShiftX, { toValue: direction, duration: 1200, useNativeDriver: true }),
+          Animated.timing(bodySettleY, { toValue: 0.6, duration: 800, useNativeDriver: true }),
+          // Settle pause
+          Animated.delay(1800),
+          // Return to neutral center
+          Animated.timing(bodyShiftX, { toValue: 0, duration: 1400, useNativeDriver: true }),
+          Animated.timing(bodySettleY, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ]).start(() => {
+          if (!isCancelled) scheduleWeightShift();
+        });
+      }, delay);
+    };
+
+    scheduleWeightShift();
+
+    return () => {
+      isCancelled = true;
+      if (shiftTimeout) clearTimeout(shiftTimeout);
+    };
+  }, [animationsEnabled, motionFactor, isAppActive, pose, bodyShiftX, bodySettleY]);
 
   // 2. Continuous body breathing & gentle head bob loops
   useEffect(() => {
@@ -169,23 +313,49 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
     };
   }, [animationsEnabled, motionFactor, isAppActive, headBob, bodyBreath]);
 
-  // 3. Dynamic tail sway pivoted around base joint
+  // 3. Multi-Modal Dynamic Tail Language (Mood, Pose & Weather Influenced)
   useEffect(() => {
     if (!animationsEnabled || motionFactor === 0 || !isAppActive) {
       tailAngle.setValue(0);
       return;
     }
 
+    let toAngle1 = 14;
+    let toAngle2 = -12;
+    let period = Math.round(1350 / motionFactor);
+
+    if (pose === 'curl_sleep') {
+      // Sleepy gentle tuck
+      toAngle1 = -5;
+      toAngle2 = -8;
+      period = Math.round(2200 / motionFactor);
+    } else if (pose === 'bongo_tap' || pose === 'wave' || expression === 'happy') {
+      // Upbeat cheerful swish
+      toAngle1 = 18;
+      toAngle2 = -16;
+      period = Math.round(750 / motionFactor);
+    } else if (expression === 'curious') {
+      // Perky flick
+      toAngle1 = 16;
+      toAngle2 = -6;
+      period = Math.round(950 / motionFactor);
+    } else if (expression === 'startled' || pose === 'duck_hide') {
+      // Tense lowered tail
+      toAngle1 = 4;
+      toAngle2 = -2;
+      period = Math.round(1600 / motionFactor);
+    }
+
     const tailLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(tailAngle, {
-          toValue: pose === 'curl_sleep' ? -4 : 14,
-          duration: Math.round(1100 / motionFactor),
+          toValue: toAngle1,
+          duration: period,
           useNativeDriver: true,
         }),
         Animated.timing(tailAngle, {
-          toValue: pose === 'curl_sleep' ? -8 : -12,
-          duration: Math.round(1100 / motionFactor),
+          toValue: toAngle2,
+          duration: period,
           useNativeDriver: true,
         }),
       ])
@@ -193,7 +363,26 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
     tailLoop.start();
 
     return () => tailLoop.stop();
-  }, [pose, animationsEnabled, motionFactor, isAppActive, tailAngle]);
+  }, [pose, expression, animationsEnabled, motionFactor, isAppActive, tailAngle]);
+
+
+  // 3B. Live Prop Idle Sway (Umbrella gently sways with cat breathing)
+  useEffect(() => {
+    if (!animationsEnabled || motionFactor === 0 || !isAppActive || renderedAccessory !== 'umbrella') {
+      umbrellaSway.setValue(0);
+      return;
+    }
+
+    const swayLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(umbrellaSway, { toValue: 2.2, duration: 1600, useNativeDriver: true }),
+        Animated.timing(umbrellaSway, { toValue: -1.8, duration: 1600, useNativeDriver: true }),
+      ])
+    );
+    swayLoop.start();
+
+    return () => swayLoop.stop();
+  }, [renderedAccessory, animationsEnabled, motionFactor, isAppActive, umbrellaSway]);
 
   // 4. Independent Front Paws (Bongo drumming alternating combo & wave)
   useEffect(() => {
@@ -418,6 +607,193 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
           </Svg>
         </Animated.View>
 
+        {/* 4B. ANIMATED PROP OVERLAY */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: 120,
+            height: 108,
+            transform: [
+              { translateY: headBob },
+              { translateX: bodyShiftX },
+              { rotate: tiltDeg },
+              { scale: accessoryAnim },
+            ],
+            opacity: accessoryAnim,
+          }}
+          pointerEvents="none"
+        >
+          <Svg width="120" height="108" viewBox="0 0 120 108" style={{ position: 'absolute', top: 0, left: 0 }}>
+             <Defs>
+              <LinearGradient id="umbrellaGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#38BDF8" />
+                <Stop offset="100%" stopColor="#0284C7" />
+              </LinearGradient>
+              <LinearGradient id="scarfGradA" x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor="#EF4444" />
+                <Stop offset="50%" stopColor="#F87171" />
+                <Stop offset="100%" stopColor="#DC2626" />
+              </LinearGradient>
+              <LinearGradient id="bellGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#FEF08A" />
+                <Stop offset="40%" stopColor="#FBBF24" />
+                <Stop offset="85%" stopColor="#D97706" />
+                <Stop offset="100%" stopColor="#92400E" />
+              </LinearGradient>
+              <LinearGradient id="collarRibbonA" x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor="#E11D48" />
+                <Stop offset="50%" stopColor="#FB7185" />
+                <Stop offset="100%" stopColor="#BE123C" />
+              </LinearGradient>
+              <LinearGradient id="maskGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#818CF8" />
+                <Stop offset="50%" stopColor="#6366F1" />
+                <Stop offset="100%" stopColor="#4F46E5" />
+              </LinearGradient>
+              <LinearGradient id="strawGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#FDE047" />
+                <Stop offset="100%" stopColor="#CA8A04" />
+              </LinearGradient>
+            </Defs>
+            
+            {/* SIGNATURE MASCOT BELL COLLAR (Rendered when not wearing winter scarf) */}
+            {renderedAccessory !== 'scarf' && (
+              <G>
+                {/* Delicate Ribbon Band Hugging Neck */}
+                <Path
+                  d="M 44 63 Q 60 68.5 76 63"
+                  stroke="url(#collarRibbonA)"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                {/* Golden Mascot Bell */}
+                <Circle cx="60" cy="65.8" r="3.4" fill="url(#bellGradA)" stroke="#78350F" strokeWidth="0.75" />
+                {/* Bell Highlight Specular Shine */}
+                <Circle cx="59.1" cy="64.5" r="0.95" fill="#FFFFFF" opacity="0.85" />
+                {/* Horizontal Bell Seam */}
+                <Path d="M 58 67 L 62 67" stroke="#78350F" strokeWidth="0.65" strokeLinecap="round" />
+                {/* Bell Hole */}
+                <Circle cx="60" cy="67.5" r="0.45" fill="#451A03" />
+              </G>
+            )}
+
+            {renderedAccessory === 'scarf' && (
+              <G>
+                <Path
+                  d="M 40 64 Q 60 70 80 64 Q 82 72 60 74 Q 38 72 40 64 Z"
+                  fill="url(#scarfGradA)"
+                  stroke="#B91C1C"
+                  strokeWidth="1.5"
+                />
+                <Path d="M 68 68 L 72 82 L 78 81 L 74 67 Z" fill="url(#scarfGradA)" stroke="#B91C1C" strokeWidth="1.5" />
+              </G>
+            )}
+
+            {renderedAccessory === 'sunglasses' && (
+              <G>
+                <Path d="M 42 41 L 57 41 L 55 49 L 44 49 Z" fill="#0F172A" />
+                <Path d="M 63 41 L 78 41 L 76 49 L 65 49 Z" fill="#0F172A" />
+                <Path d="M 57 44 L 63 44" stroke="#0F172A" strokeWidth="2.5" />
+                {/* Specular glass reflection */}
+                <Path d="M 45 43 L 53 43" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeLinecap="round" />
+                <Path d="M 66 43 L 74 43" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeLinecap="round" />
+              </G>
+            )}
+
+            {renderedAccessory === 'umbrella' && (
+              <G transform="translate(18, 6)">
+                <Path
+                  d="M 8 36 Q 30 8 52 36 Q 41 33 30 36 Q 19 33 8 36 Z"
+                  fill="url(#umbrellaGradA)"
+                  stroke="#0369A1"
+                  strokeWidth="1.5"
+                />
+                <Path d="M 30 36 L 30 64 Q 30 68 26 68" stroke="#64748B" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </G>
+            )}
+
+            {renderedAccessory === 'fan' && (
+              <G transform="translate(78, 64) rotate(-15)">
+                <Path d="M 0 0 L 16 -12 Q 24 -4 18 10 Z" fill="#F472B6" stroke="#DB2777" strokeWidth="1.2" />
+                <Path d="M 0 0 L 18 2" stroke="#9D174D" strokeWidth="1" />
+              </G>
+            )}
+
+            {renderedAccessory === 'straw_hat' && (
+              <G transform="translate(32, 16)">
+                <Ellipse cx="28" cy="18" rx="26" ry="6" fill="url(#strawGradA)" stroke="#854D0E" strokeWidth="1.2" />
+                <Path d="M 16 17 C 16 8 40 8 40 17 Z" fill="url(#strawGradA)" stroke="#854D0E" strokeWidth="1.2" />
+                <Path d="M 17 16 Q 28 18 39 16" stroke="#DC2626" strokeWidth="2" />
+              </G>
+            )}
+
+            {renderedAccessory === 'sports_headband' && (
+              <G transform="translate(36, 32)">
+                <Path d="M 0 4 Q 24 8 48 4 Q 48 9 24 12 Q 0 9 0 4 Z" fill="#EA580C" stroke="#9A3412" strokeWidth="1" />
+                <Path d="M 2 5 Q 24 9 46 5" stroke="#FFFFFF" strokeWidth="1.2" />
+              </G>
+            )}
+
+            {(renderedAccessory === 'eye_mask' || renderedAccessory === 'sleeping_cap') && (
+              <G>
+                <Path
+                  d="M 37 46 Q 32 44 28 42 M 83 46 Q 88 44 92 42"
+                  stroke="#3730A3"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+                <Path
+                  d="M 37 45 C 34 37 47 36 54 40 C 57 42 60 42 63 40 C 70 36 83 37 80 45 C 83 53 71 55 64 50 C 61 48 59 48 56 50 C 46 55 34 53 37 45 Z"
+                  fill="url(#maskGradA)"
+                  stroke="#312E81"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d="M 40 40 Q 47 37 53 40"
+                  stroke="rgba(255, 255, 255, 0.45)"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path
+                  d="M 67 40 Q 73 37 80 40"
+                  stroke="rgba(255, 255, 255, 0.45)"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path
+                  d="M 45 46 Q 49 49 53 46"
+                  stroke="#FEF08A"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path d="M 47 48 L 46 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
+                <Path d="M 51 48 L 52 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
+                <Path
+                  d="M 67 46 Q 71 49 75 46"
+                  stroke="#FEF08A"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path d="M 69 48 L 68 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
+                <Path d="M 73 48 L 74 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
+                <Path
+                  d="M 59.2 38.8 A 2.2 2.2 0 0 0 61.2 42.2 A 1.8 1.8 0 0 1 59.2 38.8 Z"
+                  fill="#FDE047"
+                />
+              </G>
+            )}
+          </Svg>
+        </Animated.View>
+
+
         {/* 3. CAT BODY LAYER (Breathing Squash & Stretch + Fluffy Chest Fur Bib) */}
         <Animated.View
           style={{
@@ -426,7 +802,11 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
             left: 0,
             width: 120,
             height: 108,
-            transform: [{ scaleY: breathScaleY }],
+            transform: [
+              { scaleY: breathScaleY },
+              { translateX: bodyShiftX },
+              { translateY: bodySettleY },
+            ],
           }}
         >
           <Svg width="120" height="108" viewBox="0 0 120 108">
@@ -754,139 +1134,7 @@ export const MausamCatSvg = React.memo(function MausamCatSvg({
             <Path d="M 84 49 Q 95 46 98 47" stroke={outlineColor} strokeWidth="1.2" strokeLinecap="round" opacity="0.75" />
             <Path d="M 84 53 Q 94 53 97 55" stroke={outlineColor} strokeWidth="1.2" strokeLinecap="round" opacity="0.75" />
 
-            {/* ACCESSORIES */}
-            {/* SIGNATURE MASCOT BELL COLLAR (Rendered when not wearing winter scarf) */}
-            {accessory !== 'scarf' && (
-              <G>
-                {/* Delicate Ribbon Band Hugging Neck */}
-                <Path
-                  d="M 44 63 Q 60 68.5 76 63"
-                  stroke="url(#collarRibbon2)"
-                  strokeWidth="2.6"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                {/* Golden Mascot Bell */}
-                <Circle cx="60" cy="65.8" r="3.4" fill="url(#bellGrad2)" stroke="#78350F" strokeWidth="0.75" />
-                {/* Bell Highlight Specular Shine */}
-                <Circle cx="59.1" cy="64.5" r="0.95" fill="#FFFFFF" opacity="0.85" />
-                {/* Horizontal Bell Seam */}
-                <Path d="M 58 67 L 62 67" stroke="#78350F" strokeWidth="0.65" strokeLinecap="round" />
-                {/* Bell Hole */}
-                <Circle cx="60" cy="67.5" r="0.45" fill="#451A03" />
-              </G>
-            )}
-
-            {accessory === 'scarf' && (
-              <G>
-                <Path
-                  d="M 40 64 Q 60 70 80 64 Q 82 72 60 74 Q 38 72 40 64 Z"
-                  fill="url(#scarfGrad2)"
-                  stroke="#B91C1C"
-                  strokeWidth="1.5"
-                />
-                <Path d="M 68 68 L 72 82 L 78 81 L 74 67 Z" fill="url(#scarfGrad2)" stroke="#B91C1C" strokeWidth="1.5" />
-              </G>
-            )}
-
-            {accessory === 'sunglasses' && (
-              <G>
-                <Path d="M 42 41 L 57 41 L 55 49 L 44 49 Z" fill="#0F172A" />
-                <Path d="M 63 41 L 78 41 L 76 49 L 65 49 Z" fill="#0F172A" />
-                <Path d="M 57 44 L 63 44" stroke="#0F172A" strokeWidth="2.5" />
-                {/* Specular glass reflection */}
-                <Path d="M 45 43 L 53 43" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeLinecap="round" />
-                <Path d="M 66 43 L 74 43" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeLinecap="round" />
-              </G>
-            )}
-
-            {accessory === 'umbrella' && (
-              <G transform="translate(18, 6)">
-                <Path
-                  d="M 8 36 Q 30 8 52 36 Q 41 33 30 36 Q 19 33 8 36 Z"
-                  fill="url(#umbrellaGrad2)"
-                  stroke="#0369A1"
-                  strokeWidth="1.5"
-                />
-                <Path d="M 30 36 L 30 64 Q 30 68 26 68" stroke="#64748B" strokeWidth="2" strokeLinecap="round" fill="none" />
-              </G>
-            )}
-
-            {accessory === 'fan' && (
-              <G transform="translate(78, 64) rotate(-15)">
-                <Path d="M 0 0 L 16 -12 Q 24 -4 18 10 Z" fill="#F472B6" stroke="#DB2777" strokeWidth="1.2" />
-                <Path d="M 0 0 L 18 2" stroke="#9D174D" strokeWidth="1" />
-              </G>
-            )}
-
-            {accessory === 'straw_hat' && (
-              <G transform="translate(32, 16)">
-                <Ellipse cx="28" cy="18" rx="26" ry="6" fill="url(#strawGrad2)" stroke="#854D0E" strokeWidth="1.2" />
-                <Path d="M 16 17 C 16 8 40 8 40 17 Z" fill="url(#strawGrad2)" stroke="#854D0E" strokeWidth="1.2" />
-                <Path d="M 17 16 Q 28 18 39 16" stroke="#DC2626" strokeWidth="2" />
-              </G>
-            )}
-
-            {accessory === 'sports_headband' && (
-              <G transform="translate(36, 32)">
-                <Path d="M 0 4 Q 24 8 48 4 Q 48 9 24 12 Q 0 9 0 4 Z" fill="#EA580C" stroke="#9A3412" strokeWidth="1" />
-                <Path d="M 2 5 Q 24 9 46 5" stroke="#FFFFFF" strokeWidth="1.2" />
-              </G>
-            )}
-
-            {(accessory === 'eye_mask' || accessory === 'sleeping_cap') && (
-              <G>
-                <Path
-                  d="M 37 46 Q 32 44 28 42 M 83 46 Q 88 44 92 42"
-                  stroke="#3730A3"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-                <Path
-                  d="M 37 45 C 34 37 47 36 54 40 C 57 42 60 42 63 40 C 70 36 83 37 80 45 C 83 53 71 55 64 50 C 61 48 59 48 56 50 C 46 55 34 53 37 45 Z"
-                  fill="url(#maskGrad2)"
-                  stroke="#312E81"
-                  strokeWidth="1.8"
-                  strokeLinejoin="round"
-                />
-                <Path
-                  d="M 40 40 Q 47 37 53 40"
-                  stroke="rgba(255, 255, 255, 0.45)"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                <Path
-                  d="M 67 40 Q 73 37 80 40"
-                  stroke="rgba(255, 255, 255, 0.45)"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                <Path
-                  d="M 45 46 Q 49 49 53 46"
-                  stroke="#FEF08A"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                <Path d="M 47 48 L 46 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
-                <Path d="M 51 48 L 52 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
-                <Path
-                  d="M 67 46 Q 71 49 75 46"
-                  stroke="#FEF08A"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                <Path d="M 69 48 L 68 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
-                <Path d="M 73 48 L 74 50.5" stroke="#FEF08A" strokeWidth="1.3" strokeLinecap="round" />
-                <Path
-                  d="M 59.2 38.8 A 2.2 2.2 0 0 0 61.2 42.2 A 1.8 1.8 0 0 1 59.2 38.8 Z"
-                  fill="#FDE047"
-                />
-              </G>
-            )}
+            {/* ACCESSORIES ARE NOW RENDERED IN A SEPARATE ANIMATED OVERLAY FOR LIFECYCLE SCALING */}
           </Svg>
         </Animated.View>
 
