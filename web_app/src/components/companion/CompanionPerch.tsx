@@ -62,21 +62,24 @@ export const CompanionPerch = React.memo(function CompanionPerch({ compact = fal
           onClick={dismissSpeech}
           className="relative mb-2 max-w-[220px] px-3.5 py-2 rounded-2xl cursor-pointer shadow-lg backdrop-blur-md transition-all duration-300 transform animate-in fade-in slide-in-from-bottom-2"
           style={{
-            backgroundColor: theme.isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-            border: `1.5px solid ${theme.colors.border}`,
-            color: theme.colors.text,
+            backgroundColor: theme.isDark ? '#1E293B' : '#FFFFFF',
+            border: `1.5px solid ${theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}`,
+            boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15)',
           }}
         >
-          <Typography variant="caption" className="font-semibold text-center leading-tight">
+          <p
+            className="font-bold text-xs text-center leading-snug"
+            style={{ color: theme.isDark ? '#F8FAFC' : '#0F172A' }}
+          >
             {currentSpeech}
-          </Typography>
+          </p>
           {/* Triangle tail */}
           <div
             className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45"
             style={{
-              backgroundColor: theme.isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-              borderBottom: `1.5px solid ${theme.colors.border}`,
-              borderRight: `1.5px solid ${theme.colors.border}`,
+              backgroundColor: theme.isDark ? '#1E293B' : '#FFFFFF',
+              borderBottom: `1.5px solid ${theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}`,
+              borderRight: `1.5px solid ${theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}`,
             }}
           />
         </div>
