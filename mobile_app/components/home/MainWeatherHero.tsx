@@ -382,7 +382,6 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
                 lineHeight: 74,
                 letterSpacing: 0.5,
                 color: theme.colors.text,
-                fontFamily: 'KinderChildKawaiiBubble', // Explicitly use custom font for numbers
                 fontVariant: ['tabular-nums'],
               }}
             >
@@ -397,7 +396,6 @@ export const MainWeatherHero = React.memo(function MainWeatherHero({ locationNam
                 fontWeight: '300',
                 marginTop: 6,
                 marginLeft: 2,
-                fontFamily: 'KinderChildKawaiiBubble',
               }}
             >
               °
