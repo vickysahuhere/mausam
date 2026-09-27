@@ -12,7 +12,7 @@
  * 7. Background/foreground app lifecycle handling.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@/lib/AsyncStorage';
 import { CatSound } from './catTypes';
 
 const SOUND_PREF_KEY = '@mausam_cat_sound_enabled';

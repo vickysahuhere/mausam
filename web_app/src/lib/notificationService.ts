@@ -1,56 +1,21 @@
-import { Platform } from 'react-native';
 import AsyncStorage from '@/lib/AsyncStorage';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { AlertSeverity } from './alertService';
 
 const NOTIFIED_ALERTS_KEY = '@mausam_notified_alerts';
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-
-let Notifications: any = null;
-
-if (!isExpoGo) {
-  try {
-    Notifications = require('expo-notifications');
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-      }),
-    });
-  } catch {
-    Notifications = null;
-  }
-}
 
 export async function registerForPushNotificationsAsync(): Promise<boolean> {
-  if (!Notifications) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
   }
   try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    if (Notification.permission === 'granted') {
+      return true;
     }
-    if (finalStatus !== 'granted') {
-      return false;
+    if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
     }
-
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('severe_weather', {
-        name: 'Severe Weather Warnings',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#EF4444',
-      });
-    }
-
-    return true;
+    return false;
   } catch {
     return false;
   }
@@ -61,22 +26,18 @@ export async function triggerLocalWeatherAlert(
   body: string,
   severity: AlertSeverity | string
 ): Promise<void> {
-  if (!Notifications) {
-    // In Expo Go, notifications are displayed as high-visibility in-app alerts
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     return;
   }
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `${severity === 'red' ? '🚨 RED ALERT' : '⚠️ WARNING'}: ${title}`,
+  if (Notification.permission === 'granted') {
+    try {
+      new Notification(`${severity === 'red' ? '🚨 RED ALERT' : '⚠️ WARNING'}: ${title}`, {
         body,
-        data: { severity },
-        sound: true,
-      },
-      trigger: null,
-    });
-  } catch {
-    // Graceful fallback
+        icon: '/favicon.ico',
+      });
+    } catch {
+      // Graceful fallback
+    }
   }
 }
 
