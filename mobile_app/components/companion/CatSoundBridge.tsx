@@ -135,7 +135,7 @@ const WEBVIEW_AUDIO_ENGINE_HTML = `
 let activeBridgeInstanceId: number | null = null;
 let nextBridgeId = 1;
 
-export const CatSoundBridge = React.memo(function CatSoundBridge() {
+const CatSoundBridgeInner = React.memo(function CatSoundBridgeInner() {
   const [instanceId] = useState(() => nextBridgeId++);
   const webViewRef = useRef<any>(null);
 
@@ -200,12 +200,22 @@ export const CatSoundBridge = React.memo(function CatSoundBridge() {
     return null;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { WebView } = require('react-native-webview');
+  let WebViewComponent: any = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const rnwv = require('react-native-webview');
+    WebViewComponent = rnwv?.WebView || null;
+  } catch {
+    WebViewComponent = null;
+  }
+
+  if (!WebViewComponent) {
+    return null;
+  }
 
   return (
     <View style={styles.hiddenContainer} pointerEvents="none">
-      <WebView
+      <WebViewComponent
         ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: WEBVIEW_AUDIO_ENGINE_HTML }}
@@ -232,8 +242,33 @@ export const CatSoundBridge = React.memo(function CatSoundBridge() {
             // Ignore non-json messages
           }
         }}
+        onError={() => {
+          // Fall back gracefully if webview errors
+        }}
       />
     </View>
+  );
+});
+
+class SoundBridgeErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch() {
+    // Silent recovery
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
+export const CatSoundBridge = React.memo(function SafeCatSoundBridge() {
+  return (
+    <SoundBridgeErrorBoundary>
+      <CatSoundBridgeInner />
+    </SoundBridgeErrorBoundary>
   );
 });
 
